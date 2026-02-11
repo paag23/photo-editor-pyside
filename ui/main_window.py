@@ -1,5 +1,3 @@
-# ui/main_window.py
-
 '''
 Responsabilidades:
     - Crear la ventana
@@ -42,6 +40,13 @@ class MainWindow(QMainWindow):
         self.open_button = QPushButton("Abrir imagen")
         self.open_button.clicked.connect(self.open_image)
 
+        # -------Botones Undo / Redo-------
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.undo_action)
+        
+        self.redo_button = QPushButton("Redo")
+        self.redo_button.clicked.connect(self.redo_action)
+
         # ---------- Visor ----------
         self.viewer = ImageViewer()
 
@@ -71,6 +76,9 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(contrast_label)
         controls_layout.addWidget(self.contrast_slider)
         controls_layout.addWidget(self.reset_button)
+        # -------Layouts Boton Undo/Redo-----------
+        controls_layout.addWidget(self.undo_button)
+        controls_layout.addWidget(self.redo_button)
 
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
@@ -109,7 +117,7 @@ class MainWindow(QMainWindow):
         brightness = self.brightness_slider.value()
         contrast = self.contrast_slider.value() / 100.0
 
-        pixmap = self.image_manager.apply_brightness_contrast(
+        pixmap = self.image_manager.update_parameters(
             brightness,
             contrast
         )
@@ -124,3 +132,36 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self.brightness_slider.setValue(0)
             self.contrast_slider.setValue(100)
+        pixmap = self.image_manager.undo()
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+
+        # Actualizamos sliders al estado recuperado
+            params = self.image_manager.current_params
+            self.brightness_slider.setValue(params["brightness"])
+            self.contrast_slider.setValue(int(params["contrast"] * 100))
+
+    # -----FUNCIONES Botones Undo/Redo----------
+    def undo_action(self):
+        pixmap = self.image_manager.undo()
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+
+            # Actualizamos sliders al estado recuperado
+            params = self.image_manager.current_params
+            self.brightness_slider.setValue(params["brightness"])
+            self.contrast_slider.setValue(int(params["contrast"] * 100))
+
+    def redo_action(self):
+        pixmap = self.image_manager.redo()
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+
+        # Actualizamos sliders
+            params = self.image_manager.current_params
+            self.brightness_slider.setValue(params["brightness"])
+            self.contrast_slider.setValue(int(params["contrast"] * 100))
+            
