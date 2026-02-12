@@ -22,7 +22,8 @@ class ImageManager:
         # Parámetros actuales del pipeline
         self.current_params = {
             "brightness": 0,
-            "contrast": 1.0
+            "contrast": 1.0,
+            "saturation": 1.0
         }
 
         # Pilas de historial (paramétricas)
@@ -45,7 +46,8 @@ class ImageManager:
         # Reiniciar parámetros e historial
         self.current_params = {
             "brightness": 0,
-            "contrast": 1.0
+            "contrast": 1.0,
+            "saturation": 1.0
         }
         self.undo_stack.clear()
         self.redo_stack.clear()
@@ -53,9 +55,9 @@ class ImageManager:
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # APLICAR NUEVOS PARÁMETROS
+    # ACTUALIZAR NUEVOS PARÁMETROS
     # -------------------------------------------------
-    def update_parameters(self, brightness: int, contrast: float) -> QPixmap | None:
+    def update_parameters(self, brightness, contrast, saturation):
         if self.original_image is None:
             return None
 
@@ -65,7 +67,8 @@ class ImageManager:
         # Actualizamos estado actual
         self.current_params = {
             "brightness": brightness,
-            "contrast": contrast
+            "contrast": contrast,
+            "saturation": saturation
         }
 
         # Limpiamos REDO porque hay nueva acción
@@ -76,7 +79,7 @@ class ImageManager:
     # -------------------------------------------------
     # UNDO
     # -------------------------------------------------
-    def undo(self) -> QPixmap | None:
+    def undo(self):
         if not self.undo_stack:
             return None
 
@@ -91,7 +94,7 @@ class ImageManager:
     # -------------------------------------------------
     # REDO
     # -------------------------------------------------
-    def redo(self) -> QPixmap | None:
+    def redo(self):
         if not self.redo_stack:
             return None
 
@@ -106,27 +109,39 @@ class ImageManager:
     # -------------------------------------------------
     # PIPELINE CENTRAL (NO DESTRUCTIVO)
     # -------------------------------------------------
-    def _process_pipeline(self) -> QPixmap:
+    def _process_pipeline(self):
         """
         Recalcula imagen desde original_image usando current_params
         """
-
         brightness = self.current_params["brightness"]
         contrast = self.current_params["contrast"]
+        saturation = self.current_params["saturation"]
 
-        # Aplicamos fórmula: imagen * alpha + beta
+
+        # Aplicamos fórmula Brillo Contraste: imagen * alpha + beta 
         processed = cv2.convertScaleAbs(
             self.original_image,
             alpha=contrast,
             beta=brightness
         )
 
+        # Saturación (HSV)
+        hsv = cv2.cvtColor(processed, cv2.COLOR_RGB2HSV).astype(np.float32)
+
+        hsv[..., 1] *= saturation  # multiplicamos canal S
+        hsv[..., 1] = np.clip(hsv[..., 1], 0, 255)
+
+        hsv = hsv.astype(np.uint8)
+
+        processed = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+
         return self._to_qpixmap(processed)
 
     # -------------------------------------------------
     # CONVERSIÓN A QPIXMAP
     # -------------------------------------------------
-    def _to_qpixmap(self, image: np.ndarray) -> QPixmap:
+    def _to_qpixmap(self, image):
         height, width, channels = image.shape
         bytes_per_line = channels * width
 

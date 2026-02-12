@@ -60,25 +60,37 @@ class MainWindow(QMainWindow):
         self.contrast_slider.setRange(50, 300)  # 0.5 a 3.0
         self.contrast_slider.setValue(100)
         self.contrast_slider.valueChanged.connect(self.update_image)
+        
+        #------- Slider Saturación---------
+        self.saturation_slider = QSlider(Qt.Horizontal)
+        self.saturation_slider.setRange(0, 300)  # 0.0 a 3.0
+        self.saturation_slider.setValue(100)
+        self.saturation_slider.valueChanged.connect(self.update_image)
 
-        # Etiquetas
+        #--------- Etiquetas--------------
         brightness_label = QLabel("Brillo")
         contrast_label = QLabel("Contraste")
+        saturation_label = QLabel("Saturación")
 
         # ---------- Botón reset ----------
         self.reset_button = QPushButton("Reset")
         self.reset_button.clicked.connect(self.reset_image)
 
-        # ---------- Layout de controles ----------
+        # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(brightness_label)
         controls_layout.addWidget(self.brightness_slider)
         controls_layout.addWidget(contrast_label)
         controls_layout.addWidget(self.contrast_slider)
         controls_layout.addWidget(self.reset_button)
+        
         # -------Layouts Boton Undo/Redo-----------
         controls_layout.addWidget(self.undo_button)
         controls_layout.addWidget(self.redo_button)
+        
+        # -------Layouts Saturacion-----------
+        controls_layout.addWidget(saturation_label)
+        controls_layout.addWidget(self.saturation_slider)
 
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
@@ -116,10 +128,12 @@ class MainWindow(QMainWindow):
         """
         brightness = self.brightness_slider.value()
         contrast = self.contrast_slider.value() / 100.0
+        saturation = self.saturation_slider.value() / 100.0
 
         pixmap = self.image_manager.update_parameters(
             brightness,
-            contrast
+            contrast,
+            saturation
         )
 
         if pixmap:
@@ -164,4 +178,4 @@ class MainWindow(QMainWindow):
             params = self.image_manager.current_params
             self.brightness_slider.setValue(params["brightness"])
             self.contrast_slider.setValue(int(params["contrast"] * 100))
-            
+            self.saturation_slider.setValue(int(params["saturation"] * 100))
