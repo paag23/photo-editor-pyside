@@ -117,7 +117,6 @@ class ImageManager:
         contrast = self.current_params["contrast"]
         saturation = self.current_params["saturation"]
 
-
         # Aplicamos fórmula Brillo Contraste: imagen * alpha + beta 
         processed = cv2.convertScaleAbs(
             self.original_image,
@@ -132,11 +131,22 @@ class ImageManager:
         hsv[..., 1] = np.clip(hsv[..., 1], 0, 255)
 
         hsv = hsv.astype(np.uint8)
-
         processed = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
-
         return self._to_qpixmap(processed)
+    
+    # -------------------------------------------------
+    # MÉTODO PÚBLICO PARA OBTENER IMAGEN PROCESADA
+    # -------------------------------------------------
+    def get_processed_pixmap(self):
+        """
+        Devuelve la imagen procesada actualhO
+        (usado para Before / After)
+        """
+        if self.original_image is None:
+            return None
+
+        return self._process_pipeline()
 
     # -------------------------------------------------
     # CONVERSIÓN A QPIXMAP
@@ -154,3 +164,12 @@ class ImageManager:
         )
 
         return QPixmap.fromImage(q_image)
+    
+    # -------------------------------------------------
+    # OBTENER IMAGEN ORIGINAL (para Before)
+    # -------------------------------------------------
+    def get_original_pixmap(self):
+        if self.original_image is None:
+            return None
+
+        return self._to_qpixmap(self.original_image)

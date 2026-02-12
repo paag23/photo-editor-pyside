@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self.resize(1000, 700)
         self.image_manager = ImageManager()
         self._setup_ui()
+        self.before_mode = False #Captura de eventos de TEclado
 
     def _setup_ui(self):
         # ---------- Botón abrir ----------
@@ -179,3 +180,29 @@ class MainWindow(QMainWindow):
             self.brightness_slider.setValue(params["brightness"])
             self.contrast_slider.setValue(int(params["contrast"] * 100))
             self.saturation_slider.setValue(int(params["saturation"] * 100))
+    
+    # -----FUNCIONES Botones Undo/Redo----------
+    def keyPressEvent(self, event):
+        """
+        Detecta cuando se presiona una tecla
+        """
+        if event.key() == Qt.Key_Space and not self.before_mode:
+            self.before_mode = True
+
+            pixmap = self.image_manager.get_original_pixmap()
+
+            if pixmap:
+                self.viewer.set_image(pixmap)
+
+    def keyReleaseEvent(self, event):
+        """
+        Detecta cuando se suelta la tecla
+        """
+        if event.key() == Qt.Key_Space and self.before_mode:
+            self.before_mode = False
+
+        # Volvemos al estado procesado actual
+            pixmap = self.image_manager.get_processed_pixmap()
+
+            if pixmap:
+                self.viewer.set_image(pixmap)
