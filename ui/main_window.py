@@ -68,6 +68,13 @@ class MainWindow(QMainWindow):
         self.saturation_slider.setValue(100)
         self.saturation_slider.valueChanged.connect(self.update_image)
 
+        # -------Slider Curva toanal-----------
+        self.curve_slider = QSlider(Qt.Horizontal)
+        self.curve_slider.setRange(-100, 100)
+        self.curve_slider.setValue(0)
+        self.curve_slider.valueChanged.connect(self.update_image)
+        curve_label = QLabel("Curva")
+
         #--------- Etiquetas--------------
         brightness_label = QLabel("Brillo")
         contrast_label = QLabel("Contraste")
@@ -92,6 +99,10 @@ class MainWindow(QMainWindow):
         # -------Layouts Saturacion-----------
         controls_layout.addWidget(saturation_label)
         controls_layout.addWidget(self.saturation_slider)
+
+        # -------Layouts Curva-----------
+        controls_layout.addWidget(curve_label)
+        controls_layout.addWidget(self.curve_slider)
 
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
@@ -130,11 +141,13 @@ class MainWindow(QMainWindow):
         brightness = self.brightness_slider.value()
         contrast = self.contrast_slider.value() / 100.0
         saturation = self.saturation_slider.value() / 100.0
+        curve_strength = self.curve_slider.value() / 100.0
 
         pixmap = self.image_manager.update_parameters(
             brightness,
             contrast,
-            saturation
+            saturation,
+            curve_strength
         )
 
         if pixmap:
@@ -163,25 +176,33 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
-
-            # Actualizamos sliders al estado recuperado
+            
+            # Recuperamos parametros actuales
             params = self.image_manager.current_params
+
+            # Actualizamos sliders
             self.brightness_slider.setValue(params["brightness"])
             self.contrast_slider.setValue(int(params["contrast"] * 100))
+            self.saturation_slider.setValue(int(params["saturation"] * 100))
+            self.curve_slider.setValue(int(params["curve_strength"] * 100))
 
     def redo_action(self):
         pixmap = self.image_manager.redo()
 
         if pixmap:
             self.viewer.set_image(pixmap)
+            
+            # Recuperamos parametros actuales
+            params = self.image_manager.current_params
 
-        # Actualizamos sliders
+            # Actualizamos sliders
             params = self.image_manager.current_params
             self.brightness_slider.setValue(params["brightness"])
             self.contrast_slider.setValue(int(params["contrast"] * 100))
             self.saturation_slider.setValue(int(params["saturation"] * 100))
+            self.curve_slider.setValue(int(params["curve_strength"] * 100))
     
-    # -----FUNCIONES Botones Undo/Redo----------
+    # -----FUNCIONES Captura de Tecla botones Undo/Redo----------
     def keyPressEvent(self, event):
         """
         Detecta cuando se presiona una tecla

@@ -23,7 +23,8 @@ class ImageManager:
         self.current_params = {
             "brightness": 0,
             "contrast": 1.0,
-            "saturation": 1.0
+            "saturation": 1.0,
+            "curve_strength": 0.0
         }
 
         # Pilas de historial (paramétricas)
@@ -57,7 +58,7 @@ class ImageManager:
     # -------------------------------------------------
     # ACTUALIZAR NUEVOS PARÁMETROS
     # -------------------------------------------------
-    def update_parameters(self, brightness, contrast, saturation):
+    def update_parameters(self, brightness, contrast, saturation, curve_strength):
         if self.original_image is None:
             return None
 
@@ -68,7 +69,8 @@ class ImageManager:
         self.current_params = {
             "brightness": brightness,
             "contrast": contrast,
-            "saturation": saturation
+            "saturation": saturation,
+            "curve_strength": curve_strength
         }
 
         # Limpiamos REDO porque hay nueva acción
@@ -133,6 +135,14 @@ class ImageManager:
         hsv = hsv.astype(np.uint8)
         processed = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
+        # Curva tonal
+        curve_strength = self.current_params["curve_strength"]
+        
+        if abs(curve_strength) > 0.01:
+            lut = self._generate_curve_lut(curve_strength)
+            processed = cv2.LUT(processed, lut)
+
+        # Resultado Final va a _process_pipeline(self)
         return self._to_qpixmap(processed)
     
     # -------------------------------------------------
@@ -173,3 +183,23 @@ class ImageManager:
             return None
 
         return self._to_qpixmap(self.original_image)
+
+    # -------------------------------------------------
+    # CURVA 
+    # -------------------------------------------------
+
+    def _generate_curve_lut(self, strength):
+        """
+        Genera LUT para curva tonal tipo S
+        strength: -1.0 a 1.0
+        """
+        x = np.arange(256)
+
+        # Curva tipo sigmoide
+        midpoint = 128
+        factor = 5 * strength  # controla intensidad
+
+        y = 255 / (1 + np.exp(-(x - midpoint) * factor / 128))
+        y = np.clip(y, 0, 255)
+
+        return y.astype(np.uint8)
