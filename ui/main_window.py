@@ -128,7 +128,7 @@ class MainWindow(QMainWindow):
         pixmap = self.image_manager.load_image(file_path)
 
         if pixmap:
-            self.viewer.set_image(pixmap)
+            self.viewer.set_image(pixmap, reset_view=True)
 
             # Reiniciamos sliders
             self.brightness_slider.setValue(0)
@@ -202,7 +202,7 @@ class MainWindow(QMainWindow):
             self.saturation_slider.setValue(int(params["saturation"] * 100))
             self.curve_slider.setValue(int(params["curve_strength"] * 100))
     
-    # -----FUNCIONES Captura de Tecla botones Undo/Redo----------
+    # -----FUNCIONES Captura de Tecla para Berfore/After----------
     def keyPressEvent(self, event):
         """
         Detecta cuando se presiona una tecla

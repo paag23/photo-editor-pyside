@@ -48,7 +48,8 @@ class ImageManager:
         self.current_params = {
             "brightness": 0,
             "contrast": 1.0,
-            "saturation": 1.0
+            "saturation": 1.0,
+            "curve_strength": 0.0
         }
         self.undo_stack.clear()
         self.redo_stack.clear()

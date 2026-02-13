@@ -2,8 +2,7 @@
 
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt
-
+from PySide6.QtCore import Qt, QTimer
 
 class ImageViewer(QGraphicsView):
     def __init__(self):
@@ -28,20 +27,28 @@ class ImageViewer(QGraphicsView):
         # Fondo neutro (criterio fotográfico)
         self.setStyleSheet("background-color: #2b2b2b;")
 
-    def set_image(self, pixmap: QPixmap):
+    def set_image(self, pixmap: QPixmap, reset_view=False):
         """
-        Coloca una imagen nueva en el visor
+        Coloca una imagen en el visor.
+        reset_view=True  → se reinicia zoom y encuadre (solo al cargar imagen nueva)
+        reset_view=False → mantiene zoom actual (sliders, undo, before)
         """
-        self.scene.clear()  # eliminamos cualquier imagen previa
-        self.pixmap_item = self.scene.addPixmap(pixmap)
-
-        # Ajustamos la escena al tamaño de la imagen
+        # Si es la primera vez, añadimos el pixmap
+        if self.pixmap_item is None:
+            self.pixmap_item = self.scene.addPixmap(pixmap)
+        else:
+            self.pixmap_item.setPixmap(pixmap)
+        #  Esto debe ejecutarse SIEMPRE
         self.scene.setSceneRect(self.pixmap_item.boundingRect())
 
-        # Reiniciamos el zoom
-        self.resetTransform()
-        self.zoom_factor = 1.0
-
+        if reset_view:
+            self.resetTransform()
+        # Ajuste diferido SOLO al cargar imagen nueva
+            QTimer.singleShot(
+                0,
+                lambda: self.fitInView(self.pixmap_item, Qt.KeepAspectRatio)
+            )
+ 
     def wheelEvent(self, event):
         """
         Zoom usando la rueda del mouse
@@ -62,3 +69,5 @@ class ImageViewer(QGraphicsView):
         # Aplicamos el escalado
         self.scale(zoom, zoom)
         self.zoom_factor *= zoom
+        
+
