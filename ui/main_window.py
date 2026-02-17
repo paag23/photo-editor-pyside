@@ -158,14 +158,10 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
+
             self.brightness_slider.setValue(0)
             self.contrast_slider.setValue(100)
-        pixmap = self.image_manager.undo()
-
-        if pixmap:
-            self.viewer.set_image(pixmap)
-
-        # Actualizamos sliders al estado recuperado
+            # Actualizamos sliders al estado recuperado
             params = self.image_manager.current_params
             self.brightness_slider.setValue(params["brightness"])
             self.contrast_slider.setValue(int(params["contrast"] * 100))

@@ -204,3 +204,28 @@ class ImageManager:
         y = np.clip(y, 0, 255)
 
         return y.astype(np.uint8)
+    
+    # -------------------------------------------------
+    # RESET
+    # -------------------------------------------------
+    def reset_image(self):
+        """
+        Restaura parámetros a estado inicial
+        """
+        if self.original_image is None:
+            return None
+
+        # Restaurar valores por defecto
+        self.current_params = {
+            "brightness": 0,
+            "contrast": 1.0,
+            "saturation": 1.0,
+            "curve_strength": 0.0
+        }
+
+    # Limpiar historial
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+
+        return self._process_pipeline()
+
