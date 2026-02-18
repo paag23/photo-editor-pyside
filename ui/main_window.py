@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.image_manager = ImageManager()
         self._setup_ui()
         self.before_mode = False #Captura de eventos de TEclado
+        self._updating_ui = False # Arregla Bug undo 
+
 
     def _setup_ui(self):
         # ---------- Botón abrir ----------
@@ -135,9 +137,7 @@ class MainWindow(QMainWindow):
             self.contrast_slider.setValue(100)
 
     def update_image(self):
-        """
-        Se ejecuta cada vez que se mueve un slider
-        """
+
         brightness = self.brightness_slider.value()
         contrast = self.contrast_slider.value() / 100.0
         saturation = self.saturation_slider.value() / 100.0
@@ -153,18 +153,16 @@ class MainWindow(QMainWindow):
         if pixmap:
             self.viewer.set_image(pixmap)
 
+
+
     def reset_image(self):
         pixmap = self.image_manager.reset_image()
 
         if pixmap:
             self.viewer.set_image(pixmap)
 
-            self.brightness_slider.setValue(0)
-            self.contrast_slider.setValue(100)
-            # Actualizamos sliders al estado recuperado
-            params = self.image_manager.current_params
-            self.brightness_slider.setValue(params["brightness"])
-            self.contrast_slider.setValue(int(params["contrast"] * 100))
+            state = self.image_manager.get_current_state()
+            self._sync_sliders(state)
 
     # -----FUNCIONES Botones Undo/Redo----------
     def undo_action(self):
@@ -172,31 +170,20 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
-            
-            # Recuperamos parametros actuales
-            params = self.image_manager.current_params
 
-            # Actualizamos sliders
-            self.brightness_slider.setValue(params["brightness"])
-            self.contrast_slider.setValue(int(params["contrast"] * 100))
-            self.saturation_slider.setValue(int(params["saturation"] * 100))
-            self.curve_slider.setValue(int(params["curve_strength"] * 100))
+            state = self.image_manager.get_current_state()
+            self._sync_sliders(state)
+
 
     def redo_action(self):
         pixmap = self.image_manager.redo()
 
         if pixmap:
             self.viewer.set_image(pixmap)
-            
-            # Recuperamos parametros actuales
-            params = self.image_manager.current_params
 
-            # Actualizamos sliders
-            params = self.image_manager.current_params
-            self.brightness_slider.setValue(params["brightness"])
-            self.contrast_slider.setValue(int(params["contrast"] * 100))
-            self.saturation_slider.setValue(int(params["saturation"] * 100))
-            self.curve_slider.setValue(int(params["curve_strength"] * 100))
+            state = self.image_manager.get_current_state()
+            self._sync_sliders(state)
+
     
     # -----FUNCIONES Captura de Tecla para Berfore/After----------
     def keyPressEvent(self, event):
@@ -220,6 +207,23 @@ class MainWindow(QMainWindow):
 
         # Volvemos al estado procesado actual
             pixmap = self.image_manager.get_processed_pixmap()
-
+ 
             if pixmap:
                 self.viewer.set_image(pixmap)
+
+
+    def _sync_sliders(self, state):
+            sliders = [
+            (self.brightness_slider, state["brightness"]),
+            (self.contrast_slider, int(state["contrast"] * 100)),
+            (self.saturation_slider, int(state["saturation"] * 100)),
+            (self.curve_slider, int(state["curve_strength"] * 100)),
+            ]
+
+            for slider, value in sliders:
+                slider.blockSignals(True)
+                slider.setValue(value)
+                slider.blockSignals(False)
+
+
+

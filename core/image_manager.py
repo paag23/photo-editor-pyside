@@ -9,25 +9,22 @@ Decisiones correctas desde ahora:
     - Imagen original intocable
     - Imagen de trabajo separada (clave para edición no destructiva)
 '''
-# core/image_manager.py
 import cv2
-import numpy as np
+import copy
+
 from PySide6.QtGui import QImage, QPixmap
+
+from core.operations import (
+    BrightnessContrastOperation,
+    SaturationOperation,
+    CurveOperation
+)
 
 class ImageManager:
     def __init__(self):
-        # Imagen original en RGB (intocable)
         self.original_image = None
+        self.operations = []
 
-        # Parámetros actuales del pipeline
-        self.current_params = {
-            "brightness": 0,
-            "contrast": 1.0,
-            "saturation": 1.0,
-            "curve_strength": 0.0
-        }
-
-        # Pilas de historial (paramétricas)
         self.undo_stack = []
         self.redo_stack = []
 
@@ -44,38 +41,31 @@ class ImageManager:
 
         self.original_image = image_rgb.copy()
 
-        # Reiniciar parámetros e historial
-        self.current_params = {
-            "brightness": 0,
-            "contrast": 1.0,
-            "saturation": 1.0,
-            "curve_strength": 0.0
-        }
+        self.operations = []
         self.undo_stack.clear()
         self.redo_stack.clear()
 
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # ACTUALIZAR NUEVOS PARÁMETROS
+    # ACTUALIZAR PARÁMETROS
     # -------------------------------------------------
     def update_parameters(self, brightness, contrast, saturation, curve_strength):
         if self.original_image is None:
             return None
 
-        # Guardamos estado anterior en UNDO
-        self.undo_stack.append(self.current_params.copy())
-
-        # Actualizamos estado actual
-        self.current_params = {
-            "brightness": brightness,
-            "contrast": contrast,
-            "saturation": saturation,
-            "curve_strength": curve_strength
-        }
-
-        # Limpiamos REDO porque hay nueva acción
+        # Guardar estado anterior
+        self.undo_stack.append(copy.deepcopy(self.operations))
         self.redo_stack.clear()
+
+        # Reconstruir operaciones
+        self.operations = [
+            BrightnessContrastOperation(brightness, contrast),
+            SaturationOperation(saturation),
+            CurveOperation(curve_strength)
+        ]
+        print("UPDATE")
+        print("UNDO:", len(self.undo_stack), "REDO:", len(self.redo_stack))
 
         return self._process_pipeline()
 
@@ -86,11 +76,12 @@ class ImageManager:
         if not self.undo_stack:
             return None
 
-        # Movemos estado actual a REDO
-        self.redo_stack.append(self.current_params.copy())
+        self.redo_stack.append(copy.deepcopy(self.operations))
+        self.operations = self.undo_stack.pop()
 
-        # Recuperamos último estado de UNDO
-        self.current_params = self.undo_stack.pop()
+        print("UNDO ACTION")
+        print("UNDO:", len(self.undo_stack), "REDO:", len(self.redo_stack))
+
 
         return self._process_pipeline()
 
@@ -101,66 +92,68 @@ class ImageManager:
         if not self.redo_stack:
             return None
 
-        # Movemos estado actual a UNDO
-        self.undo_stack.append(self.current_params.copy())
+        self.undo_stack.append(copy.deepcopy(self.operations))
+        self.operations = self.redo_stack.pop()
 
-        # Recuperamos estado futuro
-        self.current_params = self.redo_stack.pop()
+        print("REDO ACTION")
+        print("UNDO:", len(self.undo_stack), "REDO:", len(self.redo_stack))
+
 
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # PIPELINE CENTRAL (NO DESTRUCTIVO)
+    # RESET
     # -------------------------------------------------
-    def _process_pipeline(self):
-        """
-        Recalcula imagen desde original_image usando current_params
-        """
-        brightness = self.current_params["brightness"]
-        contrast = self.current_params["contrast"]
-        saturation = self.current_params["saturation"]
-
-        # Aplicamos fórmula Brillo Contraste: imagen * alpha + beta 
-        processed = cv2.convertScaleAbs(
-            self.original_image,
-            alpha=contrast,
-            beta=brightness
-        )
-
-        # Saturación (HSV)
-        hsv = cv2.cvtColor(processed, cv2.COLOR_RGB2HSV).astype(np.float32)
-
-        hsv[..., 1] *= saturation  # multiplicamos canal S
-        hsv[..., 1] = np.clip(hsv[..., 1], 0, 255)
-
-        hsv = hsv.astype(np.uint8)
-        processed = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-
-        # Curva tonal
-        curve_strength = self.current_params["curve_strength"]
-        
-        if abs(curve_strength) > 0.01:
-            lut = self._generate_curve_lut(curve_strength)
-            processed = cv2.LUT(processed, lut)
-
-        # Resultado Final va a _process_pipeline(self)
-        return self._to_qpixmap(processed)
-    
-    # -------------------------------------------------
-    # MÉTODO PÚBLICO PARA OBTENER IMAGEN PROCESADA
-    # -------------------------------------------------
-    def get_processed_pixmap(self):
-        """
-        Devuelve la imagen procesada actualhO
-        (usado para Before / After)
-        """
+    def reset_image(self):
         if self.original_image is None:
             return None
 
+        self.operations = []
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # CONVERSIÓN A QPIXMAP
+    # PIPELINE
+    # -------------------------------------------------
+    def _process_pipeline(self):
+        if self.original_image is None:
+            return None
+
+        img = self.original_image.copy()
+
+        for operation in self.operations:
+            img = operation.apply(img)
+
+        return self._to_qpixmap(img)
+
+    # -------------------------------------------------
+    # GET STATE (para sincronizar UI)
+    # -------------------------------------------------
+    def get_current_state(self):
+        state = {
+            "brightness": 0,
+            "contrast": 1.0,
+            "saturation": 1.0,
+            "curve_strength": 0.0
+        }
+
+        for op in self.operations:
+            if isinstance(op, BrightnessContrastOperation):
+                state["brightness"] = op.brightness
+                state["contrast"] = op.contrast
+
+            elif isinstance(op, SaturationOperation):
+                state["saturation"] = op.saturation
+
+            elif isinstance(op, CurveOperation):
+                state["curve_strength"] = op.strength
+
+        return state
+
+    # -------------------------------------------------
+    # CONVERSIÓN QPIXMAP
     # -------------------------------------------------
     def _to_qpixmap(self, image):
         height, width, channels = image.shape
@@ -175,9 +168,9 @@ class ImageManager:
         )
 
         return QPixmap.fromImage(q_image)
-    
+
     # -------------------------------------------------
-    # OBTENER IMAGEN ORIGINAL (para Before)
+    # BEFORE
     # -------------------------------------------------
     def get_original_pixmap(self):
         if self.original_image is None:
@@ -185,47 +178,5 @@ class ImageManager:
 
         return self._to_qpixmap(self.original_image)
 
-    # -------------------------------------------------
-    # CURVA 
-    # -------------------------------------------------
-
-    def _generate_curve_lut(self, strength):
-        """
-        Genera LUT para curva tonal tipo S
-        strength: -1.0 a 1.0
-        """
-        x = np.arange(256)
-
-        # Curva tipo sigmoide
-        midpoint = 128
-        factor = 5 * strength  # controla intensidad
-
-        y = 255 / (1 + np.exp(-(x - midpoint) * factor / 128))
-        y = np.clip(y, 0, 255)
-
-        return y.astype(np.uint8)
-    
-    # -------------------------------------------------
-    # RESET
-    # -------------------------------------------------
-    def reset_image(self):
-        """
-        Restaura parámetros a estado inicial
-        """
-        if self.original_image is None:
-            return None
-
-        # Restaurar valores por defecto
-        self.current_params = {
-            "brightness": 0,
-            "contrast": 1.0,
-            "saturation": 1.0,
-            "curve_strength": 0.0
-        }
-
-    # Limpiar historial
-        self.undo_stack.clear()
-        self.redo_stack.clear()
-
+    def get_processed_pixmap(self):
         return self._process_pipeline()
-
