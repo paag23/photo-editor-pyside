@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from core.image_manager import ImageManager
 from ui.image_viewer import ImageViewer
+from core.operations import BlurOperation
+from core.operations import BlurOperation, SharpenOperation
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -85,6 +87,14 @@ class MainWindow(QMainWindow):
         # ---------- Botón reset ----------
         self.reset_button = QPushButton("Reset")
         self.reset_button.clicked.connect(self.reset_image)
+        
+        # ---------- Botón Blur ----------
+        self.blur_button = QPushButton("Blur")
+        self.blur_button.clicked.connect(self.apply_blur)
+
+        # ---------- Botón Sharpen ----------
+        self.sharpen_button = QPushButton("Sharpen")
+        self.sharpen_button.clicked.connect(self.apply_sharpen)     
 
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
@@ -106,11 +116,19 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(curve_label)
         controls_layout.addWidget(self.curve_slider)
 
+        # -------Layouts Blur-----------
+        controls_layout.addWidget(self.blur_button)
+        
+        # -------Layouts Sharpen-----------
+        controls_layout.addWidget(self.sharpen_button)
+
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.open_button)
         main_layout.addLayout(controls_layout)
         main_layout.addWidget(self.viewer, stretch=1)
+
+        
 
         container = QWidget()
         container.setLayout(main_layout)
@@ -152,7 +170,6 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
-
 
 
     def reset_image(self):
@@ -224,6 +241,21 @@ class MainWindow(QMainWindow):
                 slider.blockSignals(True)
                 slider.setValue(value)
                 slider.blockSignals(False)
+        
+        # Funcion metodo BLur 
+    def apply_blur(self):
+        pixmap = self.image_manager.add_operation(
+            BlurOperation(kernel_size=7)
+        )
 
+        if pixmap:
+            self.viewer.set_image(pixmap)
 
+        # Funcion metodo Sharpen
+    def apply_sharpen(self):
+        pixmap = self.image_manager.add_operation(
+            SharpenOperation(amount=1.5, radius=5)
+        )
 
+        if pixmap:
+            self.viewer.set_image(pixmap)

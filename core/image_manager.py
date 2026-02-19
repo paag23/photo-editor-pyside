@@ -180,3 +180,16 @@ class ImageManager:
 
     def get_processed_pixmap(self):
         return self._process_pipeline()
+    # -------------------------------------------------
+    # PERMITE AGREGAR FILTROS AL PIPELINE
+    # -------------------------------------------------
+    def add_operation(self, operation):
+        if self.original_image is None:
+            return None
+
+        self.undo_stack.append(copy.deepcopy(self.operations))
+        self.redo_stack.clear()
+
+        self.operations.append(operation)
+
+        return self._process_pipeline()

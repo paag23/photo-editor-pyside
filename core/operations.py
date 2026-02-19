@@ -49,3 +49,49 @@ class CurveOperation(Operation):
         y = np.clip(y, 0, 255).astype(np.uint8)
 
         return cv2.LUT(image, y) 
+
+#--------------------------------------------
+# FILTRO BLUR OPERATION
+#--------------------------------------------
+class BlurOperation(Operation):
+    def __init__(self, kernel_size=5):
+        self.kernel_size = kernel_size
+
+    def apply(self, image):
+        k = self.kernel_size
+
+        # kernel debe ser impar
+        if k % 2 == 0:
+            k += 1
+
+        return cv2.GaussianBlur(image, (k, k), 0)
+
+#--------------------------------------------
+# FILTRO SharpenOperation
+#--------------------------------------------
+class SharpenOperation(Operation):
+    def __init__(self, amount=1.0, radius=3):
+        self.amount = amount
+        self.radius = radius
+
+    def apply(self, image):
+        k = self.radius
+
+        # Kernel debe ser impar
+        if k % 2 == 0:
+            k += 1
+
+        blurred = cv2.GaussianBlur(image, (k, k), 0)
+
+        # Convertimos a float para evitar overflow
+        image_float = image.astype("float32")
+        blurred_float = blurred.astype("float32")
+
+        mask = image_float - blurred_float
+
+        sharpened = image_float + self.amount * mask
+
+        # Clipping correcto
+        sharpened = sharpened.clip(0, 255).astype("uint8")
+
+        return sharpened
