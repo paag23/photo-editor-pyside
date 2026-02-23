@@ -5,12 +5,16 @@ import cv2
 import numpy as np
 
 class Operation:
+    def __init__(self):
+        self.enabled = True
+
     def apply(self, image):
         raise NotImplementedError
 
 
 class BrightnessContrastOperation(Operation):
     def __init__(self, brightness=0, contrast=1.0):
+        super().__init__() # <- Agregar esta parte
         self.brightness = brightness
         self.contrast = contrast
 
@@ -24,6 +28,7 @@ class BrightnessContrastOperation(Operation):
 
 class SaturationOperation(Operation):
     def __init__(self, saturation=1.0):
+        super().__init__() # <- Agregar esta parte
         self.saturation = saturation
 
     def apply(self, image):
@@ -36,6 +41,7 @@ class SaturationOperation(Operation):
 
 class CurveOperation(Operation):
     def __init__(self, strength=0.0):
+        super().__init__() # <- Agregar esta parte
         self.strength = strength
 
     def apply(self, image):
@@ -55,6 +61,7 @@ class CurveOperation(Operation):
 #--------------------------------------------
 class BlurOperation(Operation):
     def __init__(self, kernel_size=5):
+        super().__init__()
         self.kernel_size = kernel_size
 
     def apply(self, image):
@@ -71,6 +78,7 @@ class BlurOperation(Operation):
 #--------------------------------------------
 class SharpenOperation(Operation):
     def __init__(self, amount=1.0, radius=3):
+        super().__init__() # <- Agregar esta parte
         self.amount = amount
         self.radius = radius
 

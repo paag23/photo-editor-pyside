@@ -11,27 +11,33 @@ Decisiones correctas desde ahora:
 '''
 import cv2
 import copy
-
 from PySide6.QtGui import QImage, QPixmap
 
 from core.operations import (
     BrightnessContrastOperation,
     SaturationOperation,
-    CurveOperation
+    CurveOperation,
+    BlurOperation,
+    SharpenOperation
 )
 
+
 class ImageManager:
+
     def __init__(self):
         self.original_image = None
-        self.operations = []
+
+        self.base_operations = []
+        self.extra_operations = []
 
         self.undo_stack = []
         self.redo_stack = []
 
     # -------------------------------------------------
-    # CARGA DE IMAGEN
+    # LOAD
     # -------------------------------------------------
-    def load_image(self, path: str) -> QPixmap | None:
+    def load_image(self, path: str):
+
         image_bgr = cv2.imread(path)
 
         if image_bgr is None:
@@ -41,31 +47,142 @@ class ImageManager:
 
         self.original_image = image_rgb.copy()
 
-        self.operations = []
+        self.base_operations = []
+        self.extra_operations = []
+
         self.undo_stack.clear()
         self.redo_stack.clear()
 
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # ACTUALIZAR PARÁMETROS
+    # PREVIEW (sliders while dragging)
     # -------------------------------------------------
-    def update_parameters(self, brightness, contrast, saturation, curve_strength):
+    def preview_parameters(self, brightness, contrast, saturation, curve_strength):
+
         if self.original_image is None:
             return None
 
-        # Guardar estado anterior
-        self.undo_stack.append(copy.deepcopy(self.operations))
+        temp_base = []
+
+        if brightness != 0 or contrast != 1.0:
+            temp_base.append(
+                BrightnessContrastOperation(brightness, contrast)
+            )
+
+        if saturation != 1.0:
+            temp_base.append(
+                SaturationOperation(saturation)
+            )
+
+        if curve_strength != 0.0:
+            temp_base.append(
+                CurveOperation(curve_strength)
+            )
+
+        img = self.original_image.copy()
+
+        for op in temp_base + self.extra_operations:
+            if op.enabled:
+                img = op.apply(img)
+
+        return self._to_qpixmap(img)
+
+    # -------------------------------------------------
+    # UPDATE BASE PARAMETERS (confirm slider change)
+    # -------------------------------------------------
+    def update_parameters(self, brightness, contrast, saturation, curve_strength):
+
+        if self.original_image is None:
+            return None
+
+        self.undo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
         self.redo_stack.clear()
 
-        # Reconstruir operaciones
-        self.operations = [
-            BrightnessContrastOperation(brightness, contrast),
-            SaturationOperation(saturation),
-            CurveOperation(curve_strength)
-        ]
-        print("UPDATE")
-        print("UNDO:", len(self.undo_stack), "REDO:", len(self.redo_stack))
+        new_base = []
+
+        if brightness != 0 or contrast != 1.0:
+            new_base.append(
+                BrightnessContrastOperation(brightness, contrast)
+            )
+
+        if saturation != 1.0:
+            new_base.append(
+                SaturationOperation(saturation)
+            )
+
+        if curve_strength != 0.0:
+            new_base.append(
+                CurveOperation(curve_strength)
+            )
+
+        self.base_operations = new_base
+
+        return self._process_pipeline()
+
+    # -------------------------------------------------
+    # ADD EXTRA OPERATION
+    # -------------------------------------------------
+    def add_operation(self, operation):
+
+        if self.original_image is None:
+            return None
+
+        self.undo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
+        self.redo_stack.clear()
+
+        self.extra_operations.append(operation)
+
+        return self._process_pipeline()
+
+    # -------------------------------------------------
+    # REMOVE OPERATION
+    # -------------------------------------------------
+    def remove_operation_at(self, index):
+
+        combined = self.base_operations + self.extra_operations
+
+        if index < 0 or index >= len(combined):
+            return None
+
+        self.undo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
+        self.redo_stack.clear()
+
+        if index < len(self.base_operations):
+            del self.base_operations[index]
+        else:
+            extra_index = index - len(self.base_operations)
+            del self.extra_operations[extra_index]
+
+        return self._process_pipeline()
+
+    # -------------------------------------------------
+    # TOGGLE
+    # -------------------------------------------------
+    def toggle_operation(self, index):
+
+        combined = self.base_operations + self.extra_operations
+
+        if index < 0 or index >= len(combined):
+            return None
+
+        self.undo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
+        self.redo_stack.clear()
+
+        if index < len(self.base_operations):
+            op = self.base_operations[index]
+        else:
+            op = self.extra_operations[index - len(self.base_operations)]
+
+        op.enabled = not op.enabled
 
         return self._process_pipeline()
 
@@ -73,15 +190,15 @@ class ImageManager:
     # UNDO
     # -------------------------------------------------
     def undo(self):
+
         if not self.undo_stack:
             return None
 
-        self.redo_stack.append(copy.deepcopy(self.operations))
-        self.operations = self.undo_stack.pop()
+        self.redo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
 
-        print("UNDO ACTION")
-        print("UNDO:", len(self.undo_stack), "REDO:", len(self.redo_stack))
-
+        self.base_operations, self.extra_operations = self.undo_stack.pop()
 
         return self._process_pipeline()
 
@@ -89,15 +206,15 @@ class ImageManager:
     # REDO
     # -------------------------------------------------
     def redo(self):
+
         if not self.redo_stack:
             return None
 
-        self.undo_stack.append(copy.deepcopy(self.operations))
-        self.operations = self.redo_stack.pop()
+        self.undo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
 
-        print("REDO ACTION")
-        print("UNDO:", len(self.undo_stack), "REDO:", len(self.redo_stack))
-
+        self.base_operations, self.extra_operations = self.redo_stack.pop()
 
         return self._process_pipeline()
 
@@ -105,57 +222,48 @@ class ImageManager:
     # RESET
     # -------------------------------------------------
     def reset_image(self):
+
         if self.original_image is None:
             return None
 
-        self.operations = []
-        self.undo_stack.clear()
+        self.undo_stack.append(
+            copy.deepcopy((self.base_operations, self.extra_operations))
+        )
         self.redo_stack.clear()
+
+        self.base_operations = []
+        self.extra_operations = []
 
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # PIPELINE
+    # PROCESS PIPELINE
     # -------------------------------------------------
     def _process_pipeline(self):
+
         if self.original_image is None:
             return None
 
         img = self.original_image.copy()
 
-        for operation in self.operations:
-            img = operation.apply(img)
+        for op in self.base_operations + self.extra_operations:
+            if op.enabled:
+                img = op.apply(img)
 
         return self._to_qpixmap(img)
 
     # -------------------------------------------------
-    # GET STATE (para sincronizar UI)
+    # PANEL INFO
     # -------------------------------------------------
-    def get_current_state(self):
-        state = {
-            "brightness": 0,
-            "contrast": 1.0,
-            "saturation": 1.0,
-            "curve_strength": 0.0
-        }
+    def get_operations_info(self):
 
-        for op in self.operations:
-            if isinstance(op, BrightnessContrastOperation):
-                state["brightness"] = op.brightness
-                state["contrast"] = op.contrast
-
-            elif isinstance(op, SaturationOperation):
-                state["saturation"] = op.saturation
-
-            elif isinstance(op, CurveOperation):
-                state["curve_strength"] = op.strength
-
-        return state
+        return self.base_operations + self.extra_operations
 
     # -------------------------------------------------
-    # CONVERSIÓN QPIXMAP
+    # QPIXMAP
     # -------------------------------------------------
     def _to_qpixmap(self, image):
+
         height, width, channels = image.shape
         bytes_per_line = channels * width
 
@@ -168,28 +276,39 @@ class ImageManager:
         )
 
         return QPixmap.fromImage(q_image)
+    
+    def get_current_state(self):
 
-    # -------------------------------------------------
-    # BEFORE
-    # -------------------------------------------------
+        state = {
+            "brightness": 0,
+            "contrast": 1.0,
+            "saturation": 1.0,
+            "curve_strength": 0.0
+        }
+
+        for op in self.base_operations:
+            if isinstance(op, BrightnessContrastOperation):
+                state["brightness"] = op.brightness
+                state["contrast"] = op.contrast
+
+            elif isinstance(op, SaturationOperation):
+                state["saturation"] = op.saturation
+
+            elif isinstance(op, CurveOperation):
+                state["curve_strength"] = op.strength
+
+        return state
+# -------------------------------------------------
+# BEFORE / AFTER
+# -------------------------------------------------
     def get_original_pixmap(self):
+
         if self.original_image is None:
             return None
 
         return self._to_qpixmap(self.original_image)
 
+
     def get_processed_pixmap(self):
-        return self._process_pipeline()
-    # -------------------------------------------------
-    # PERMITE AGREGAR FILTROS AL PIPELINE
-    # -------------------------------------------------
-    def add_operation(self, operation):
-        if self.original_image is None:
-            return None
-
-        self.undo_stack.append(copy.deepcopy(self.operations))
-        self.redo_stack.clear()
-
-        self.operations.append(operation)
 
         return self._process_pipeline()

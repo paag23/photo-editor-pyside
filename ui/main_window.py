@@ -21,12 +21,18 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSlider,
+    QListWidgetItem
 )
 from PySide6.QtCore import Qt
 from core.image_manager import ImageManager
 from ui.image_viewer import ImageViewer
 from core.operations import BlurOperation
 from core.operations import BlurOperation, SharpenOperation
+from PySide6.QtWidgets import QListWidget
+import copy 
+from PySide6.QtCore import Qt
+
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -37,7 +43,8 @@ class MainWindow(QMainWindow):
         self.image_manager = ImageManager()
         self._setup_ui()
         self.before_mode = False #Captura de eventos de TEclado
-        self._updating_ui = False # Arregla Bug undo 
+        self._updating_ui = False # Arregla Bug undo
+        self._slider_active = False # Slider Estado 
 
 
     def _setup_ui(self):
@@ -79,6 +86,19 @@ class MainWindow(QMainWindow):
         self.curve_slider.valueChanged.connect(self.update_image)
         curve_label = QLabel("Curva")
 
+        #---------Guarda Estado de Slider------------
+        self.brightness_slider.sliderPressed.connect(self._begin_slider_change)
+        self.brightness_slider.sliderReleased.connect(self._end_slider_change)
+
+        self.contrast_slider.sliderPressed.connect(self._begin_slider_change)
+        self.contrast_slider.sliderReleased.connect(self._end_slider_change)
+
+        self.saturation_slider.sliderPressed.connect(self._begin_slider_change)
+        self.saturation_slider.sliderReleased.connect(self._end_slider_change)
+
+        self.curve_slider.sliderPressed.connect(self._begin_slider_change)
+        self.curve_slider.sliderReleased.connect(self._end_slider_change)
+
         #--------- Etiquetas--------------
         brightness_label = QLabel("Brillo")
         contrast_label = QLabel("Contraste")
@@ -94,7 +114,19 @@ class MainWindow(QMainWindow):
 
         # ---------- Botón Sharpen ----------
         self.sharpen_button = QPushButton("Sharpen")
-        self.sharpen_button.clicked.connect(self.apply_sharpen)     
+        self.sharpen_button.clicked.connect(self.apply_sharpen)
+        
+        # ---------- Listado de Operaciones ----------
+        self.operations_list = QListWidget()
+        self.operations_list.setMaximumHeight(120)
+
+        #-------Detectar cambio de checkbox lista------
+        self.operations_list.itemChanged.connect(self._operation_toggled)
+
+        # ------------Eliminar Operaciiones 
+        self.remove_button = QPushButton("Eliminar Operación")
+        self.remove_button.clicked.connect(self.remove_selected_operation)
+             
 
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
@@ -121,14 +153,26 @@ class MainWindow(QMainWindow):
         
         # -------Layouts Sharpen-----------
         controls_layout.addWidget(self.sharpen_button)
+       
+        # --------Crear slider en UI----------
+        self.sharpen_slider = QSlider(Qt.Horizontal)
+        self.sharpen_slider.setRange(0, 300)
+        self.sharpen_slider.setValue(0)
+        self.sharpen_slider.valueChanged.connect(self.update_sharpen)
+
+        sharpen_label = QLabel("Sharpen")
+        controls_layout.addWidget(sharpen_label)
+        controls_layout.addWidget(self.sharpen_slider)
+
 
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.open_button)
         main_layout.addLayout(controls_layout)
         main_layout.addWidget(self.viewer, stretch=1)
-
-        
+        main_layout.addWidget(self.operations_list)
+        # -------Layouts Boton Remover Operacion---
+        main_layout.addWidget(self.remove_button)
 
         container = QWidget()
         container.setLayout(main_layout)
@@ -161,22 +205,33 @@ class MainWindow(QMainWindow):
         saturation = self.saturation_slider.value() / 100.0
         curve_strength = self.curve_slider.value() / 100.0
 
-        pixmap = self.image_manager.update_parameters(
-            brightness,
-            contrast,
-            saturation,
-            curve_strength
-        )
+        if self._slider_active:
+            # Solo preview
+            pixmap = self.image_manager.preview_parameters(
+                brightness,
+                contrast,
+                saturation,
+                curve_strength
+            )
+        else:
+            # Confirmar cambio real
+            pixmap = self.image_manager.update_parameters(
+                brightness,
+                contrast,
+                saturation,
+                curve_strength
+            )
 
         if pixmap:
             self.viewer.set_image(pixmap)
-
+            self._update_operations_panel()
 
     def reset_image(self):
         pixmap = self.image_manager.reset_image()
 
         if pixmap:
             self.viewer.set_image(pixmap)
+            self._update_operations_panel() # Panel de  Operaciones
 
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
@@ -187,6 +242,7 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
+            self._update_operations_panel() # Panel de  Operaciones
 
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
@@ -197,6 +253,7 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
+            self._update_operations_panel() # Panel de  Operaciones
 
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
@@ -250,12 +307,77 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
+            self._update_operations_panel() # Panel de  Operaciones
 
-        # Funcion metodo Sharpen
+    # Funcion metodo Sharpen
     def apply_sharpen(self):
         pixmap = self.image_manager.add_operation(
             SharpenOperation(amount=1.5, radius=5)
         )
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+            self._update_operations_panel() # Panel de  Operaciones
+    
+    # Método para actualizar panel
+    def _update_operations_panel(self):
+
+        self.operations_list.clear()
+        operations = self.image_manager.get_operations_info()
+
+        for op in operations:
+            item = QListWidgetItem(type(op).__name__)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+
+            if op.enabled:
+                item.setCheckState(Qt.Checked)
+            else:
+                item.setCheckState(Qt.Unchecked)
+
+            self.operations_list.addItem(item)
+
+    def update_sharpen(self):
+
+        value = self.sharpen_slider.value()
+        if value == 0:
+            return
+
+        amount = value / 100.0
+
+        pixmap = self.image_manager.add_operation(
+            SharpenOperation(amount=value/100.0, radius=5)
+            )
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+            self._update_operations_panel()
+
+        # Eliminar Operaciones el Panel
+    def remove_selected_operation(self):
+        index = self.operations_list.currentRow()
+
+        if index == -1:
+            return
+
+        pixmap = self.image_manager.remove_operation_at(index)
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+            self._update_operations_panel()
+        
+        # Guarda el estado de los Sliders
+    def _begin_slider_change(self):
+        self._slider_active = True
+
+    def _end_slider_change(self):
+        self._slider_active = False
+
+    # Detectar cambio de checkbox
+    def _operation_toggled(self, item):
+
+        index = self.operations_list.row(item)
+
+        pixmap = self.image_manager.toggle_operation(index)
 
         if pixmap:
             self.viewer.set_image(pixmap)
