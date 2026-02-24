@@ -23,12 +23,9 @@ from core.operations import (
 
 
 class ImageManager:
-
     def __init__(self):
         self.original_image = None
-
-        self.base_operations = []
-        self.extra_operations = []
+        self.operations = []
 
         self.undo_stack = []
         self.redo_stack = []
@@ -96,29 +93,34 @@ class ImageManager:
         if self.original_image is None:
             return None
 
-        self.undo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
+        self.undo_stack.append(copy.deepcopy(self.operations))
         self.redo_stack.clear()
 
-        new_base = []
+    # Eliminar operaciones base existentes
+        self.operations = [
+            op for op in self.operations
+            if not isinstance(op, (
+                BrightnessContrastOperation,
+                SaturationOperation,
+                CurveOperation
+            ))
+        ]
 
+    # Agregar nuevas si no están neutras
         if brightness != 0 or contrast != 1.0:
-            new_base.append(
+            self.operations.append(
                 BrightnessContrastOperation(brightness, contrast)
             )
 
         if saturation != 1.0:
-            new_base.append(
+            self.operations.append(
                 SaturationOperation(saturation)
             )
 
         if curve_strength != 0.0:
-            new_base.append(
+            self.operations.append(
                 CurveOperation(curve_strength)
             )
-
-        self.base_operations = new_base
 
         return self._process_pipeline()
 
@@ -130,12 +132,10 @@ class ImageManager:
         if self.original_image is None:
             return None
 
-        self.undo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
+        self.undo_stack.append(copy.deepcopy(self.operations))
         self.redo_stack.clear()
 
-        self.extra_operations.append(operation)
+        self.operations.append(operation)
 
         return self._process_pipeline()
 
@@ -144,21 +144,13 @@ class ImageManager:
     # -------------------------------------------------
     def remove_operation_at(self, index):
 
-        combined = self.base_operations + self.extra_operations
-
-        if index < 0 or index >= len(combined):
+        if index < 0 or index >= len(self.operations):
             return None
 
-        self.undo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
+        self.undo_stack.append(copy.deepcopy(self.operations))
         self.redo_stack.clear()
 
-        if index < len(self.base_operations):
-            del self.base_operations[index]
-        else:
-            extra_index = index - len(self.base_operations)
-            del self.extra_operations[extra_index]
+        del self.operations[index]
 
         return self._process_pipeline()
 
@@ -167,57 +159,40 @@ class ImageManager:
     # -------------------------------------------------
     def toggle_operation(self, index):
 
-        combined = self.base_operations + self.extra_operations
-
-        if index < 0 or index >= len(combined):
+        if index < 0 or index >= len(self.operations):
             return None
 
-        self.undo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
+        self.undo_stack.append(copy.deepcopy(self.operations))
         self.redo_stack.clear()
 
-        if index < len(self.base_operations):
-            op = self.base_operations[index]
-        else:
-            op = self.extra_operations[index - len(self.base_operations)]
-
-        op.enabled = not op.enabled
+        self.operations[index].enabled = \
+            not self.operations[index].enabled
 
         return self._process_pipeline()
 
     # -------------------------------------------------
-    # UNDO
+    # UNDO/REDO
     # -------------------------------------------------
     def undo(self):
 
         if not self.undo_stack:
             return None
 
-        self.redo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
-
-        self.base_operations, self.extra_operations = self.undo_stack.pop()
+        self.redo_stack.append(copy.deepcopy(self.operations))
+        self.operations = self.undo_stack.pop()
 
         return self._process_pipeline()
 
-    # -------------------------------------------------
-    # REDO
-    # -------------------------------------------------
+
     def redo(self):
 
         if not self.redo_stack:
             return None
 
-        self.undo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
-
-        self.base_operations, self.extra_operations = self.redo_stack.pop()
+        self.undo_stack.append(copy.deepcopy(self.operations))
+        self.operations = self.redo_stack.pop()
 
         return self._process_pipeline()
-
     # -------------------------------------------------
     # RESET
     # -------------------------------------------------
@@ -226,13 +201,10 @@ class ImageManager:
         if self.original_image is None:
             return None
 
-        self.undo_stack.append(
-            copy.deepcopy((self.base_operations, self.extra_operations))
-        )
+        self.undo_stack.append(copy.deepcopy(self.operations))
         self.redo_stack.clear()
 
-        self.base_operations = []
-        self.extra_operations = []
+        self.operations = []
 
         return self._process_pipeline()
 
@@ -246,8 +218,8 @@ class ImageManager:
 
         img = self.original_image.copy()
 
-        for op in self.base_operations + self.extra_operations:
-            if op.enabled:
+        for op in self.operations:
+         if op.enabled:
                 img = op.apply(img)
 
         return self._to_qpixmap(img)
@@ -256,9 +228,8 @@ class ImageManager:
     # PANEL INFO
     # -------------------------------------------------
     def get_operations_info(self):
-
-        return self.base_operations + self.extra_operations
-
+        return self.operations
+    
     # -------------------------------------------------
     # QPIXMAP
     # -------------------------------------------------
@@ -276,7 +247,9 @@ class ImageManager:
         )
 
         return QPixmap.fromImage(q_image)
-    
+    # -------------------------------------------------
+    # GET CURRENT STATE
+    # -------------------------------------------------
     def get_current_state(self):
 
         state = {
@@ -286,7 +259,8 @@ class ImageManager:
             "curve_strength": 0.0
         }
 
-        for op in self.base_operations:
+        for op in self.operations:
+
             if isinstance(op, BrightnessContrastOperation):
                 state["brightness"] = op.brightness
                 state["contrast"] = op.contrast
@@ -310,5 +284,4 @@ class ImageManager:
 
 
     def get_processed_pixmap(self):
-
         return self._process_pipeline()
