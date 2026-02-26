@@ -35,6 +35,7 @@ from PySide6.QtCore import Qt
 
 
 class MainWindow(QMainWindow):
+# Metodo init     
     def __init__(self):
         super().__init__()
 
@@ -46,7 +47,7 @@ class MainWindow(QMainWindow):
         self._updating_ui = False # Arregla Bug undo
         self._slider_active = False # Slider Estado 
 
-
+# User Interface 
     def _setup_ui(self):
         # ---------- Botón abrir ----------
         self.open_button = QPushButton("Abrir imagen")
@@ -126,7 +127,13 @@ class MainWindow(QMainWindow):
         # ------------Eliminar Operaciiones 
         self.remove_button = QPushButton("Eliminar Operación")
         self.remove_button.clicked.connect(self.remove_selected_operation)
-             
+        
+        # --------Botones para mover Operaciones ----------
+        self.move_up_button = QPushButton("↑")
+        self.move_down_button = QPushButton("↓")
+
+        self.move_up_button.clicked.connect(self.move_operation_up)
+        self.move_down_button.clicked.connect(self.move_operation_down)
 
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
@@ -153,7 +160,7 @@ class MainWindow(QMainWindow):
         
         # -------Layouts Sharpen-----------
         controls_layout.addWidget(self.sharpen_button)
-       
+               
         # --------Crear slider en UI----------
         self.sharpen_slider = QSlider(Qt.Horizontal)
         self.sharpen_slider.setRange(0, 300)
@@ -165,19 +172,26 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.sharpen_slider)
 
 
+
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.open_button)
         main_layout.addLayout(controls_layout)
         main_layout.addWidget(self.viewer, stretch=1)
         main_layout.addWidget(self.operations_list)
+        
         # -------Layouts Boton Remover Operacion---
         main_layout.addWidget(self.remove_button)
+        
+        # --------Layaouts mover Operaciones -----
+        main_layout.addWidget(self.move_up_button)
+        main_layout.addWidget(self.move_down_button)  
 
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
+# Metodo para abrir una imagen en app
     def open_image(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -198,6 +212,7 @@ class MainWindow(QMainWindow):
             self.brightness_slider.setValue(0)
             self.contrast_slider.setValue(100)
 
+# Actualiza la  imagen
     def update_image(self):
 
         brightness = self.brightness_slider.value()
@@ -226,6 +241,7 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self._update_operations_panel()
 
+# Metodo para Resetear Cambios
     def reset_image(self):
         pixmap = self.image_manager.reset_image()
 
@@ -236,7 +252,7 @@ class MainWindow(QMainWindow):
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
 
-    # -----FUNCIONES Botones Undo/Redo----------
+# Metodo para Desacer
     def undo_action(self):
         pixmap = self.image_manager.undo()
 
@@ -247,7 +263,7 @@ class MainWindow(QMainWindow):
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
 
-
+# Metodo para Reacer
     def redo_action(self):
         pixmap = self.image_manager.redo()
 
@@ -259,7 +275,7 @@ class MainWindow(QMainWindow):
             self._sync_sliders(state)
 
     
-    # -----FUNCIONES Captura de Tecla para Berfore/After----------
+ # Captura de Tecla para Berfore/After----------
     def keyPressEvent(self, event):
         """
         Detecta cuando se presiona una tecla
@@ -272,10 +288,8 @@ class MainWindow(QMainWindow):
             if pixmap:
                 self.viewer.set_image(pixmap)
 
+# Detecta cuando se libera la tecla 
     def keyReleaseEvent(self, event):
-        """
-        Detecta cuando se suelta la tecla
-        """
         if event.key() == Qt.Key_Space and self.before_mode:
             self.before_mode = False
 
@@ -285,7 +299,7 @@ class MainWindow(QMainWindow):
             if pixmap:
                 self.viewer.set_image(pixmap)
 
-
+# Sincroniza los Sliders
     def _sync_sliders(self, state):
             sliders = [
             (self.brightness_slider, state["brightness"]),
@@ -299,7 +313,7 @@ class MainWindow(QMainWindow):
                 slider.setValue(value)
                 slider.blockSignals(False)
         
-        # Funcion metodo BLur 
+# Funcion metodo BLur 
     def apply_blur(self):
         pixmap = self.image_manager.add_operation(
             BlurOperation(kernel_size=7)
@@ -309,7 +323,7 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self._update_operations_panel() # Panel de  Operaciones
 
-    # Funcion metodo Sharpen
+# Funcion metodo Sharpen
     def apply_sharpen(self):
         pixmap = self.image_manager.add_operation(
             SharpenOperation(amount=1.5, radius=5)
@@ -319,7 +333,7 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self._update_operations_panel() # Panel de  Operaciones
     
-    # Método para actualizar panel
+# Método para actualizar panel
     def _update_operations_panel(self):
 
         self.operations_list.clear()
@@ -336,6 +350,7 @@ class MainWindow(QMainWindow):
 
             self.operations_list.addItem(item)
 
+# Actualiza el sharpen
     def update_sharpen(self):
 
         value = self.sharpen_slider.value()
@@ -352,7 +367,7 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self._update_operations_panel()
 
-        # Eliminar Operaciones el Panel
+# Eliminar Operaciones el Panel
     def remove_selected_operation(self):
         index = self.operations_list.currentRow()
 
@@ -365,14 +380,14 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self._update_operations_panel()
         
-        # Guarda el estado de los Sliders
+# Guarda el estado de los Sliders
     def _begin_slider_change(self):
         self._slider_active = True
 
     def _end_slider_change(self):
         self._slider_active = False
 
-    # Detectar cambio de checkbox
+# Detectar cambio de checkbox
     def _operation_toggled(self, item):
 
         index = self.operations_list.row(item)
@@ -381,3 +396,25 @@ class MainWindow(QMainWindow):
 
         if pixmap:
             self.viewer.set_image(pixmap)
+
+# Metdod para mover arriba/abajo Operaciones
+    def move_operation_up(self):
+
+        index = self.operations_list.currentRow()
+        pixmap = self.image_manager.move_operation(index, -1)
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+            self._update_operations_panel()
+            self.operations_list.setCurrentRow(index - 1)
+
+    def move_operation_down(self):
+
+        index = self.operations_list.currentRow()
+
+        pixmap = self.image_manager.move_operation(index, +1)
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+            self._update_operations_panel()
+            self.operations_list.setCurrentRow(index + 1)

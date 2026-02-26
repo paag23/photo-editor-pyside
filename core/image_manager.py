@@ -285,3 +285,25 @@ class ImageManager:
 
     def get_processed_pixmap(self):
         return self._process_pipeline()
+# ---------------------------------------------------
+#  MOVER Operaciones
+# ---------------------------------------------------
+    def move_operation(self, index, direction):
+
+        new_index = index + direction
+
+        if (
+            index < 0
+            or new_index < 0
+            or index >= len(self.operations)
+            or new_index >= len(self.operations)
+        ):
+            return None
+
+        self.undo_stack.append(copy.deepcopy(self.operations))
+        self.redo_stack.clear()
+
+        self.operations[index], self.operations[new_index] = \
+        self.operations[new_index], self.operations[index]
+
+        return self._process_pipeline()
