@@ -31,7 +31,7 @@ from core.operations import BlurOperation, SharpenOperation
 from PySide6.QtWidgets import QListWidget
 import copy 
 from PySide6.QtCore import Qt
-
+from PySide6.QtWidgets import QFileDialog
 
 
 class MainWindow(QMainWindow):
@@ -134,6 +134,13 @@ class MainWindow(QMainWindow):
 
         self.move_up_button.clicked.connect(self.move_operation_up)
         self.move_down_button.clicked.connect(self.move_operation_down)
+        
+        # ------------ Guardar Proyecto --------------------
+        self.save_project_button = QPushButton("Guardar Proyecto")
+        self.load_project_button = QPushButton("Cargar Proyecto")
+
+        self.save_project_button.clicked.connect(self.save_project)
+        self.load_project_button.clicked.connect(self.load_project)
 
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
@@ -160,7 +167,9 @@ class MainWindow(QMainWindow):
         
         # -------Layouts Sharpen-----------
         controls_layout.addWidget(self.sharpen_button)
-               
+
+
+
         # --------Crear slider en UI----------
         self.sharpen_slider = QSlider(Qt.Horizontal)
         self.sharpen_slider.setRange(0, 300)
@@ -186,6 +195,10 @@ class MainWindow(QMainWindow):
         # --------Layaouts mover Operaciones -----
         main_layout.addWidget(self.move_up_button)
         main_layout.addWidget(self.move_down_button)  
+
+        # ---------Guardar Proyecto--------------
+        main_layout.addWidget(self.save_project_button)
+        main_layout.addWidget(self.load_project_button)
 
         container = QWidget()
         container.setLayout(main_layout)
@@ -418,3 +431,36 @@ class MainWindow(QMainWindow):
             self.viewer.set_image(pixmap)
             self._update_operations_panel()
             self.operations_list.setCurrentRow(index + 1)
+
+# Guardar Proyecto 
+    def save_project(self):
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar Proyecto",
+            "",
+            "JSON Files (*.json)"
+        )
+        
+        if path:
+            self.image_manager.save_project(path)
+
+# Cargar Proyecto
+    def load_project(self):
+
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Abrir Imagen o Proyecto",
+            "",
+            "Images (*.png *.jpg *.bmp);;Project Files (*.json)"
+        )
+
+        if path:
+            pixmap = self.image_manager.load_project(path)
+
+            if pixmap:
+                self.viewer.set_image(pixmap)
+                self._update_operations_panel()
+
+                state = self.image_manager.get_current_state()
+                self._sync_sliders(state)            

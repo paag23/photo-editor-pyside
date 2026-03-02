@@ -6,7 +6,7 @@ Responsabilidad única:
 Notas importantes:
     - main.py no procesa imágenes
     - No contiene lógica de negocio
-    - Solo orquesta el arranque 
+    - Solo orquesta el arranquecdp
 '''
 
 import sys

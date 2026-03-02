@@ -12,6 +12,10 @@ Decisiones correctas desde ahora:
 import cv2
 import copy
 from PySide6.QtGui import QImage, QPixmap
+import json
+import os
+
+
 
 from core.operations import (
     BrightnessContrastOperation,
@@ -21,10 +25,18 @@ from core.operations import (
     SharpenOperation
 )
 
+OPERATION_REGISTRY = {
+    "BrightnessContrast": BrightnessContrastOperation,
+    "Saturation": SaturationOperation,
+    "Curve": CurveOperation,
+    "Blur": BlurOperation,
+    "Sharpen": SharpenOperation
+}
 
 class ImageManager:
     def __init__(self):
         self.original_image = None
+        self.original_path = None
         self.operations = []
 
         self.undo_stack = []
@@ -43,10 +55,8 @@ class ImageManager:
         image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
         self.original_image = image_rgb.copy()
-
-        self.base_operations = []
-        self.extra_operations = []
-
+        self.original_path = path
+        self.operations = []
         self.undo_stack.clear()
         self.redo_stack.clear()
 
@@ -306,4 +316,45 @@ class ImageManager:
         self.operations[index], self.operations[new_index] = \
         self.operations[new_index], self.operations[index]
 
+        return self._process_pipeline()
+
+# Guardar Proyecto    
+    def save_project(self, path):
+
+        if self.original_path is None:
+            return
+
+        project_data = {
+            "original_image_path": str(self.original_path),
+            "operations": [op.to_dict() for op in self.operations]
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(project_data, f, indent=4)
+
+# Cargar Proyecto
+    def load_project(self, path):
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+    # Cargar imagen original
+        original_path = data["original_image_path"]
+        self.load_image(original_path)
+
+    # Limpiar stacks
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+
+    # Reconstruir operaciones
+        self.operations = []
+
+        for op_data in data["operations"]:
+            op_type = op_data["type"]
+            op_class = OPERATION_REGISTRY[op_type]
+
+            op = op_class.from_dict(op_data)
+            self.operations.append(op)
+
+    #  Reprocesar
         return self._process_pipeline()
