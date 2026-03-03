@@ -214,3 +214,49 @@ class SharpenOperation(Operation):
         op = cls(data["amount"], data["radius"])
         op.enabled = data["enabled"]
         return op
+    
+# ----------------------------------------
+# FILTRO  FilmGrainOperation
+# ----------------------------------------
+class FilmGrainOperation(Operation):
+    def __init__(self, intensidad=20):
+        super().__init__()
+        self.intensidad = intensidad
+
+    def apply(self, image):
+        if not self.enabled:
+            return image
+
+        image_array = image.astype(np.int16)
+
+        lum = np.mean(image_array, axis=2, dtype=np.float32) / 255.0
+        noise = np.random.randint(
+            -self.intensidad,
+            self.intensidad + 1,
+            lum.shape,
+            dtype=np.int16
+        )
+
+        scale = 0.5 + 0.5 * lum
+        noise_scaled = (noise * scale).astype(np.int16)
+
+        noisy_image = np.clip(
+            image_array + noise_scaled[:, :, np.newaxis],
+            0,
+            255
+        ).astype(np.uint8)
+
+        return noisy_image
+
+    def to_dict(self):
+        return {
+            "type": "FilmGrain",
+            "intensidad": self.intensidad,
+            "enabled": self.enabled
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        op = cls(data["intensidad"])
+        op.enabled = data["enabled"]
+        return op

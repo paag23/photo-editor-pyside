@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QSlider,
     QListWidgetItem
 )
+from PySide6.QtWidgets import QComboBox
 from PySide6.QtCore import Qt
 from core.image_manager import ImageManager
 from ui.image_viewer import ImageViewer
@@ -41,7 +42,6 @@ from core.operations import (
     SharpenOperation
 )
 
-
 class MainWindow(QMainWindow):
 # Metodo init     
     def __init__(self):
@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
 
 # User Interface 
     def _setup_ui(self):
-
+        
         # ---------- Botón Exportar  ----------
         self.export_button = QPushButton("Exportar Imagen")
         self.export_button.clicked.connect(self.export_image)
@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self.curve_slider.sliderPressed.connect(self._begin_slider_change)
         self.curve_slider.sliderReleased.connect(self._end_slider_change)
 
+
         #--------- Etiquetas--------------
         brightness_label = QLabel("Brillo")
         contrast_label = QLabel("Contraste")
@@ -129,6 +130,7 @@ class MainWindow(QMainWindow):
         # ---------- Botón Sharpen ----------
         self.sharpen_button = QPushButton("Sharpen")
         self.sharpen_button.clicked.connect(self.apply_sharpen)
+
         
         # ---------- Listado de Operaciones ----------
         self.operations_list = QListWidget()
@@ -154,7 +156,7 @@ class MainWindow(QMainWindow):
 
         self.save_project_button.clicked.connect(self.save_project)
         self.load_project_button.clicked.connect(self.load_project)
-
+        
 
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
@@ -181,6 +183,14 @@ class MainWindow(QMainWindow):
         
         # -------Layouts Sharpen-----------
         controls_layout.addWidget(self.sharpen_button)
+        
+        #---------FILTROs ----------------
+        self.filter_combo = QComboBox()
+        self.filter_combo.addItem("Seleccionar Filtro")
+        self.filter_combo.addItem("Grano Analógico")
+        self.filter_combo.currentIndexChanged.connect(self.apply_selected_filter)
+
+        controls_layout.addWidget(self.filter_combo)
 
         # --------Crear slider en UI----------
         self.sharpen_slider = QSlider(Qt.Horizontal)
@@ -191,6 +201,7 @@ class MainWindow(QMainWindow):
         sharpen_label = QLabel("Sharpen")
         controls_layout.addWidget(sharpen_label)
         controls_layout.addWidget(self.sharpen_slider)
+        
 
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
@@ -199,6 +210,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.viewer, stretch=1)
         main_layout.addWidget(self.operations_list)
         
+
+
         # -------Layouts Boton Remover Operacion---
         main_layout.addWidget(self.remove_button)
         
@@ -216,6 +229,8 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+
+
 
 # Metodo para abrir una imagen en app
     def open_image(self):
@@ -606,3 +621,21 @@ class MainWindow(QMainWindow):
         else:
         # Crear nueva operación
             self.image_manager.add_operation(op_class(**kwargs))            
+
+# Metodo Aplicar Filtro seleccionado
+    def apply_selected_filter(self):
+
+        text = self.filter_combo.currentText()
+
+        if text == "Grano Analógico":
+            from core.operations import FilmGrainOperation
+
+            self.image_manager.add_operation(
+                FilmGrainOperation(intensidad=20)
+            )
+
+        pixmap = self.image_manager.get_pixmap()
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
+            self._update_operations_panel()

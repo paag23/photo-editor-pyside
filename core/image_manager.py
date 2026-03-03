@@ -14,14 +14,15 @@ import copy
 from PySide6.QtGui import QImage, QPixmap
 import json
 import os
-
+from core.operations import FilmGrainOperation 
 
 from core.operations import (
     BrightnessContrastOperation,
     SaturationOperation,
     CurveOperation,
     BlurOperation,
-    SharpenOperation
+    SharpenOperation,
+    FilmGrainOperation   
 )
 
 OPERATION_REGISTRY = {
@@ -29,7 +30,8 @@ OPERATION_REGISTRY = {
     "Saturation": SaturationOperation,
     "Curve": CurveOperation,
     "Blur": BlurOperation,
-    "Sharpen": SharpenOperation
+    "Sharpen": SharpenOperation,
+    "FilmGrain": FilmGrainOperation
 }
 
 class ImageManager:

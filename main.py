@@ -2,7 +2,7 @@
 
 ''' 
 Responsabilidad única:
-    Crear la aplicación Qt y lanzar la ventana principal.
+Crear la aplicación Qt y lanzar la ventana principal.
 Notas importantes:
     - main.py no procesa imágenes
     - No contiene lógica de negocio
