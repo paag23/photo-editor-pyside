@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow
 
 
-def main():
+def main(): 
     app = QApplication(sys.argv)
 
     window = MainWindow()

@@ -33,6 +33,14 @@ import copy
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog
 
+from core.operations import (
+    BrightnessContrastOperation,
+    SaturationOperation,
+    CurveOperation,
+    BlurOperation,
+    SharpenOperation
+)
+
 
 class MainWindow(QMainWindow):
 # Metodo init     
@@ -180,8 +188,6 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(sharpen_label)
         controls_layout.addWidget(self.sharpen_slider)
 
-
-
         # ---------- Layout principal ----------
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.open_button)
@@ -206,6 +212,7 @@ class MainWindow(QMainWindow):
 
 # Metodo para abrir una imagen en app
     def open_image(self):
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Abrir imagen",
@@ -216,14 +223,22 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
-        pixmap = self.image_manager.load_image(file_path)
+#  Cargar imagen en el modelo
+        self.image_manager.load_image(file_path)
+
+    #  Obtener pixmap procesado
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap, reset_view=True)
 
-            # Reiniciamos sliders
+        # Reiniciar sliders
             self.brightness_slider.setValue(0)
             self.contrast_slider.setValue(100)
+            self.saturation_slider.setValue(100)
+            self.curve_slider.setValue(0)
+
+            self._update_operations_panel()
 
 # Actualiza la  imagen
     def update_image(self):
@@ -233,22 +248,29 @@ class MainWindow(QMainWindow):
         saturation = self.saturation_slider.value() / 100.0
         curve_strength = self.curve_slider.value() / 100.0
 
-        if self._slider_active:
-            # Solo preview
-            pixmap = self.image_manager.preview_parameters(
-                brightness,
-                contrast,
-                saturation,
-                curve_strength
-            )
-        else:
-            # Confirmar cambio real
-            pixmap = self.image_manager.update_parameters(
-                brightness,
-                contrast,
-                saturation,
-                curve_strength
-            )
+    # ---------- Brightness / Contrast ----------
+        self._update_or_create_operation(
+            BrightnessContrastOperation,
+            brightness != 0 or contrast != 1.0,
+            brightness=brightness,
+            contrast=contrast
+        )
+
+    # ---------- Saturation ----------
+        self._update_or_create_operation(
+            SaturationOperation,
+            saturation != 1.0,
+            saturation=saturation
+        )
+
+    # ---------- Curve ----------
+        self._update_or_create_operation(
+            CurveOperation,
+            curve_strength != 0.0,
+            strength=curve_strength
+        )
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
@@ -256,33 +278,69 @@ class MainWindow(QMainWindow):
 
 # Metodo para Resetear Cambios
     def reset_image(self):
-        pixmap = self.image_manager.reset_image()
+
+        #  Bloquear señales
+        sliders = [
+            self.brightness_slider,
+            self.contrast_slider,
+            self.saturation_slider,
+            self.curve_slider,
+            self.sharpen_slider
+        ]
+
+        for s in sliders:
+            s.blockSignals(True)
+
+    #  Resetear modelo
+        self.image_manager.reset_image()
+
+    #  Resetear sliders
+        self.brightness_slider.setValue(0)
+        self.contrast_slider.setValue(100)
+        self.saturation_slider.setValue(100)
+        self.curve_slider.setValue(0)
+        self.sharpen_slider.setValue(0)
+
+        for s in sliders:
+            s.blockSignals(False)
+
+    #  Render limpio
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
-            self.viewer.set_image(pixmap)
-            self._update_operations_panel() # Panel de  Operaciones
-
-            state = self.image_manager.get_current_state()
-            self._sync_sliders(state)
+            self.viewer.set_image(pixmap, reset_view=True)
+            self._update_operations_panel()
 
 # Metodo para Desacer
     def undo_action(self):
-        pixmap = self.image_manager.undo()
+
+        img = self.image_manager.undo()
+
+        if img is None:
+            return
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
-            self._update_operations_panel() # Panel de  Operaciones
+            self._update_operations_panel()
 
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
 
 # Metodo para Reacer
     def redo_action(self):
-        pixmap = self.image_manager.redo()
+
+        img = self.image_manager.redo()
+
+        if img is None:
+            return
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
-            self._update_operations_panel() # Panel de  Operaciones
+            self._update_operations_panel()
 
             state = self.image_manager.get_current_state()
             self._sync_sliders(state)
@@ -290,9 +348,7 @@ class MainWindow(QMainWindow):
     
  # Captura de Tecla para Berfore/After----------
     def keyPressEvent(self, event):
-        """
-        Detecta cuando se presiona una tecla
-        """
+
         if event.key() == Qt.Key_Space and not self.before_mode:
             self.before_mode = True
 
@@ -303,12 +359,12 @@ class MainWindow(QMainWindow):
 
 # Detecta cuando se libera la tecla 
     def keyReleaseEvent(self, event):
+
         if event.key() == Qt.Key_Space and self.before_mode:
             self.before_mode = False
 
-        # Volvemos al estado procesado actual
-            pixmap = self.image_manager.get_processed_pixmap()
- 
+            pixmap = self.image_manager.get_pixmap()
+
             if pixmap:
                 self.viewer.set_image(pixmap)
 
@@ -328,23 +384,29 @@ class MainWindow(QMainWindow):
         
 # Funcion metodo BLur 
     def apply_blur(self):
-        pixmap = self.image_manager.add_operation(
+
+        self.image_manager.add_operation(
             BlurOperation(kernel_size=7)
         )
 
+        pixmap = self.image_manager.get_pixmap()
+
         if pixmap:
             self.viewer.set_image(pixmap)
-            self._update_operations_panel() # Panel de  Operaciones
+            self._update_operations_panel()
 
 # Funcion metodo Sharpen
     def apply_sharpen(self):
-        pixmap = self.image_manager.add_operation(
+
+        self.image_manager.add_operation(
             SharpenOperation(amount=1.5, radius=5)
         )
 
+        pixmap = self.image_manager.get_pixmap()
+
         if pixmap:
             self.viewer.set_image(pixmap)
-            self._update_operations_panel() # Panel de  Operaciones
+            self._update_operations_panel()
     
 # Método para actualizar panel
     def _update_operations_panel(self):
@@ -367,14 +429,23 @@ class MainWindow(QMainWindow):
     def update_sharpen(self):
 
         value = self.sharpen_slider.value()
-        if value == 0:
-            return
-
         amount = value / 100.0
 
-        pixmap = self.image_manager.add_operation(
-            SharpenOperation(amount=value/100.0, radius=5)
+    # Buscar operación Sharpen existente
+        found = False
+        for op in self.image_manager.operations:
+            if isinstance(op, SharpenOperation):
+                op.amount = amount
+                found = True
+                break
+
+    # Si no existe y el valor no es 0 → crearla
+        if not found and value != 0:
+            self.image_manager.add_operation(
+                SharpenOperation(amount=amount, radius=5)
             )
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
@@ -387,7 +458,9 @@ class MainWindow(QMainWindow):
         if index == -1:
             return
 
-        pixmap = self.image_manager.remove_operation_at(index)
+        self.image_manager.remove_operation_at(index)
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
@@ -405,7 +478,9 @@ class MainWindow(QMainWindow):
 
         index = self.operations_list.row(item)
 
-        pixmap = self.image_manager.toggle_operation(index)
+        self.image_manager.toggle_operation(index)
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
@@ -414,7 +489,10 @@ class MainWindow(QMainWindow):
     def move_operation_up(self):
 
         index = self.operations_list.currentRow()
-        pixmap = self.image_manager.move_operation(index, -1)
+
+        self.image_manager.move_operation(index, -1)
+
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
@@ -425,12 +503,21 @@ class MainWindow(QMainWindow):
 
         index = self.operations_list.currentRow()
 
-        pixmap = self.image_manager.move_operation(index, +1)
+        if index < 0 or index >= len(self.image_manager.operations) - 1:
+            return
+
+        ops = self.image_manager.operations
+
+        # Intercambiar posiciones
+        ops[index], ops[index + 1] = ops[index + 1], ops[index]
+
+        # Actualizar vista
+        pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
-            self._update_operations_panel()
-            self.operations_list.setCurrentRow(index + 1)
+
+        self._update_operations_panel()
 
 # Guardar Proyecto 
     def save_project(self):
@@ -450,17 +537,56 @@ class MainWindow(QMainWindow):
 
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Abrir Imagen o Proyecto",
+            "Abrir Proyecto",
             "",
-            "Images (*.png *.jpg *.bmp);;Project Files (*.json)"
+            "Project Files (*.json)"
         )
 
         if path:
-            pixmap = self.image_manager.load_project(path)
+            self.image_manager.load_project(path)
+
+            pixmap = self.image_manager.get_pixmap()
 
             if pixmap:
                 self.viewer.set_image(pixmap)
                 self._update_operations_panel()
 
                 state = self.image_manager.get_current_state()
-                self._sync_sliders(state)            
+                self._sync_sliders(state)           
+
+# Exportar Imagen
+    def export_image(self):
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Image",
+            "",
+            "JPEG (*.jpg);;PNG (*.png);;BMP (*.bmp)"
+        )
+
+        if path:
+            self.image_manager.export_image(path)
+
+# Metodo Auxiliar
+    def _update_or_create_operation(self, op_class, condition, **kwargs):
+
+        found = None
+
+        for op in self.image_manager.operations:
+            if isinstance(op, op_class):
+                found = op
+                break
+
+    # Si el valor es neutro → eliminar operación
+        if not condition:
+            if found:
+                self.image_manager.operations.remove(found)
+            return
+
+    # Si ya existe → actualizar parámetros
+        if found:
+            for key, value in kwargs.items():
+                setattr(found, key, value)
+        else:
+        # Crear nueva operación
+            self.image_manager.add_operation(op_class(**kwargs))            

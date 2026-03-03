@@ -16,7 +16,6 @@ import json
 import os
 
 
-
 from core.operations import (
     BrightnessContrastOperation,
     SaturationOperation,
@@ -89,7 +88,7 @@ class ImageManager:
 
         img = self.original_image.copy()
 
-        for op in temp_base + self.extra_operations:
+        for op in temp_base + self.operations:
             if op.enabled:
                 img = op.apply(img)
 
@@ -217,7 +216,6 @@ class ImageManager:
         self.operations = []
 
         return self._process_pipeline()
-
     # -------------------------------------------------
     # PROCESS PIPELINE
     # -------------------------------------------------
@@ -229,26 +227,20 @@ class ImageManager:
         img = self.original_image.copy()
 
         for op in self.operations:
-         if op.enabled:
+            if op.enabled:
                 img = op.apply(img)
+        
+        print("Procesando con operaciones:", len(self.operations))
 
-        return self._to_qpixmap(img)
+        return img
 
-    # -------------------------------------------------
-    # PANEL INFO
-    # -------------------------------------------------
-    def get_operations_info(self):
-        return self.operations
-    
-    # -------------------------------------------------
-    # QPIXMAP
-    # -------------------------------------------------
+
     def _to_qpixmap(self, image):
 
-        height, width, channels = image.shape
-        bytes_per_line = channels * width
+        height, width, channel = image.shape
+        bytes_per_line = channel * width
 
-        q_image = QImage(
+        qimage = QImage(
             image.data,
             width,
             height,
@@ -256,7 +248,16 @@ class ImageManager:
             QImage.Format_RGB888
         )
 
-        return QPixmap.fromImage(q_image)
+        return QPixmap.fromImage(qimage)
+
+
+    # -------------------------------------------------
+    # PANEL INFO
+    # -------------------------------------------------
+    def get_operations_info(self):
+        return self.operations
+    
+
     # -------------------------------------------------
     # GET CURRENT STATE
     # -------------------------------------------------
@@ -358,3 +359,23 @@ class ImageManager:
 
     #  Reprocesar
         return self._process_pipeline()
+    
+# Función que convierte a QPixmap    
+    def get_pixmap(self):
+
+        img = self._process_pipeline()
+
+        if img is None:
+            return None
+
+        return self._to_qpixmap(img)
+
+# Exportar imagen     
+    def export_image(self, path):
+        img = self._process_pipeline()
+        
+        if img is None:
+            return
+    
+        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(path, img_bgr)
