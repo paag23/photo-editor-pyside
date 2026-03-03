@@ -11,7 +11,7 @@ Observaciones clave:
     - Escalado con KeepAspectRatio (muy importante en fotografía)
 '''
 # ui/main_window.py
-
+import os
 from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
@@ -57,6 +57,11 @@ class MainWindow(QMainWindow):
 
 # User Interface 
     def _setup_ui(self):
+
+        # ---------- Botón Exportar  ----------
+        self.export_button = QPushButton("Exportar Imagen")
+        self.export_button.clicked.connect(self.export_image)
+        
         # ---------- Botón abrir ----------
         self.open_button = QPushButton("Abrir imagen")
         self.open_button.clicked.connect(self.open_image)
@@ -150,6 +155,7 @@ class MainWindow(QMainWindow):
         self.save_project_button.clicked.connect(self.save_project)
         self.load_project_button.clicked.connect(self.load_project)
 
+
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(brightness_label)
@@ -175,8 +181,6 @@ class MainWindow(QMainWindow):
         
         # -------Layouts Sharpen-----------
         controls_layout.addWidget(self.sharpen_button)
-
-
 
         # --------Crear slider en UI----------
         self.sharpen_slider = QSlider(Qt.Horizontal)
@@ -205,6 +209,9 @@ class MainWindow(QMainWindow):
         # ---------Guardar Proyecto--------------
         main_layout.addWidget(self.save_project_button)
         main_layout.addWidget(self.load_project_button)
+
+        # -------Layouts de Exportar ----------
+        main_layout.addWidget(self.export_button)
 
         container = QWidget()
         container.setLayout(main_layout)
@@ -557,15 +564,24 @@ class MainWindow(QMainWindow):
 # Exportar Imagen
     def export_image(self):
 
+        if self.image_manager.original_image is None:
+            return
+
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Image",
+            "Exportar Imagen",
             "",
             "JPEG (*.jpg);;PNG (*.png);;BMP (*.bmp)"
         )
 
-        if path:
-            self.image_manager.export_image(path)
+        if not path:
+            return
+
+        # Asegurar que tenga extensión
+        if not os.path.splitext(path)[1]:
+            path += ".jpg"
+
+        self.image_manager.export_image(path)
 
 # Metodo Auxiliar
     def _update_or_create_operation(self, op_class, condition, **kwargs):
