@@ -6,11 +6,17 @@ para el modelo paramétrico no destructivo.
 import cv2
 import numpy as np
 
+FILTER_REGISTRY = {}
+
+def register_filter(name):
+    def decorator(cls):
+        FILTER_REGISTRY[name] = cls
+        return cls
+    return decorator
 
 # =====================================================
 # BASE OPERATION
 # =====================================================
-
 class Operation:
     def __init__(self):
         self.enabled = True
@@ -175,6 +181,12 @@ class BlurOperation(Operation):
 # =====================================================
 
 class SharpenOperation(Operation):
+
+    PARAMS = {
+        "amount": (0, 300, 100),
+        "radius": (1, 15, 5)
+    }
+
     def __init__(self, amount=1.0, radius=3):
         super().__init__()
         self.amount = amount
@@ -214,22 +226,30 @@ class SharpenOperation(Operation):
         op = cls(data["amount"], data["radius"])
         op.enabled = data["enabled"]
         return op
-    
+
 # ----------------------------------------
-# FILTRO  FilmGrainOperation
+# FILTRO FilmGrainOperation
 # ----------------------------------------
+@register_filter("Grano Analógico")
 class FilmGrainOperation(Operation):
+    
+    PARAMS = {
+        "intensidad": (0, 100, 20)
+    }
+
     def __init__(self, intensidad=20):
         super().__init__()
         self.intensidad = intensidad
 
     def apply(self, image):
+
         if not self.enabled:
             return image
 
         image_array = image.astype(np.int16)
 
         lum = np.mean(image_array, axis=2, dtype=np.float32) / 255.0
+
         noise = np.random.randint(
             -self.intensidad,
             self.intensidad + 1,
@@ -248,15 +268,79 @@ class FilmGrainOperation(Operation):
 
         return noisy_image
 
+
+    # -------- Guardar proyecto --------
     def to_dict(self):
         return {
-            "type": "FilmGrain",
+            "type": "FilmGrainOperation",   # ⚠ cambio importante
             "intensidad": self.intensidad,
+            "enabled": self.enabled
+        }
+
+
+    # -------- Cargar proyecto --------
+    @classmethod
+    def from_dict(cls, data):
+
+        op = cls(data.get("intensidad", 20))   # ⚠ más robusto
+        op.enabled = data.get("enabled", True)
+
+        return op
+    
+# ----------------------------------------
+# FILTRO WES ANDERSON
+# ----------------------------------------
+@register_filter("Wes Anderson")
+class WesAndersonOperation(Operation):
+    PARAMS = {
+        "strength": (0, 200, 100)
+    }
+
+    def __init__(self, strength=1.0):
+        super().__init__()
+        self.strength = strength
+
+    def apply(self, image):
+
+        if not self.enabled:
+            return image
+
+        img = image.astype(np.float32) / 255.0
+
+        # Reducir contraste
+        contrast_factor = 0.85
+        img = img * contrast_factor + (1 - contrast_factor) * 0.5
+
+        # Aumentar brillo
+        brightness_factor = 1.15
+        img = np.clip(img * brightness_factor, 0, 1)
+
+        # Tinte cálido
+        img[:, :, 0] *= 1.08
+        img[:, :, 1] *= 1.05
+        img[:, :, 2] *= 0.95
+
+        img = np.clip(img, 0, 1)
+
+        # Overlay rosado pastel
+        pink_overlay = np.array([1.0, 0.92, 0.92], dtype=np.float32)
+        pink_strength = 0.25 * self.strength
+
+        img = img * (1 - pink_strength) + pink_overlay * pink_strength
+
+        img = np.clip(img * 255, 0, 255).astype(np.uint8)
+
+        return img
+
+    def to_dict(self):
+        return {
+            "type": "WesAnderson",
+            "strength": self.strength,
             "enabled": self.enabled
         }
 
     @classmethod
     def from_dict(cls, data):
-        op = cls(data["intensidad"])
+        op = cls(data.get("strength", 1.0))
         op.enabled = data["enabled"]
         return op

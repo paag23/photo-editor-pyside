@@ -33,6 +33,7 @@ from PySide6.QtWidgets import QListWidget
 import copy 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog
+from core.operations import FILTER_REGISTRY
 
 from core.operations import (
     BrightnessContrastOperation,
@@ -158,6 +159,7 @@ class MainWindow(QMainWindow):
         self.load_project_button.clicked.connect(self.load_project)
         
 
+
         # -------Layouts de controles ----------
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(brightness_label)
@@ -187,11 +189,14 @@ class MainWindow(QMainWindow):
         #---------FILTROs ----------------
         self.filter_combo = QComboBox()
         self.filter_combo.addItem("Seleccionar Filtro")
-        self.filter_combo.addItem("Grano Analógico")
+        for name in FILTER_REGISTRY.keys():
+            self.filter_combo.addItem(name)
+
         self.filter_combo.currentIndexChanged.connect(self.apply_selected_filter)
 
         controls_layout.addWidget(self.filter_combo)
-
+        
+        
         # --------Crear slider en UI----------
         self.sharpen_slider = QSlider(Qt.Horizontal)
         self.sharpen_slider.setRange(0, 300)
@@ -210,7 +215,9 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.viewer, stretch=1)
         main_layout.addWidget(self.operations_list)
         
-
+        # ------------ Panel Dinamico filtros--------------
+        self.filter_params_layout = QVBoxLayout()
+        main_layout.addLayout(self.filter_params_layout)
 
         # -------Layouts Boton Remover Operacion---
         main_layout.addWidget(self.remove_button)
@@ -623,19 +630,77 @@ class MainWindow(QMainWindow):
             self.image_manager.add_operation(op_class(**kwargs))            
 
 # Metodo Aplicar Filtro seleccionado
+ # Metodo Aplicar Filtro seleccionado
     def apply_selected_filter(self):
 
-        text = self.filter_combo.currentText()
+        filter_name = self.filter_combo.currentText()
 
-        if text == "Grano Analógico":
-            from core.operations import FilmGrainOperation
+        if filter_name == "Seleccionar Filtro":
+            return
 
-            self.image_manager.add_operation(
-                FilmGrainOperation(intensidad=20)
-            )
+    # Obtener clase del filtro
+        op_class = FILTER_REGISTRY.get(filter_name)
 
+        if not op_class:
+            return
+
+    # Crear instancia
+        operation = op_class()
+
+    # Añadir al pipeline
+        self.image_manager.add_operation(operation)
+
+    # Crear panel dinámico
+        self.build_filter_panel(operation)
+
+    # Renderizar imagen
         pixmap = self.image_manager.get_pixmap()
 
         if pixmap:
             self.viewer.set_image(pixmap)
             self._update_operations_panel()
+
+    # Reset combo
+        self.filter_combo.setCurrentIndex(0)
+        
+# ------------------------------------------------
+# Función que crea sliders automáticamente
+# ------------------------------------------------
+    def build_filter_panel(self, operation):
+
+    # limpiar panel anterior
+        while self.filter_params_layout.count():
+            item = self.filter_params_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        if not hasattr(operation, "PARAMS"):
+            return
+
+        for param, (minv, maxv, default) in operation.PARAMS.items():
+
+            label = QLabel(param)
+
+            slider = QSlider(Qt.Horizontal)
+            slider.setRange(minv, maxv)
+            slider.setValue(default)
+
+            slider.valueChanged.connect(
+                lambda value, p=param, op=operation: self.update_filter_param(op, p, value)
+            )
+
+            self.filter_params_layout.addWidget(label)
+            self.filter_params_layout.addWidget(slider)        
+
+# ------------------------------------------------
+# Función que actualiza el parámetro
+# ------------------------------------------------
+    def update_filter_param(self, operation, param, value):
+
+        setattr(operation, param, value)
+
+        pixmap = self.image_manager.get_pixmap()
+
+        if pixmap:
+            self.viewer.set_image(pixmap)
