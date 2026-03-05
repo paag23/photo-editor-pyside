@@ -573,7 +573,6 @@ class MainWindow(QMainWindow):
 
         if path:
             self.image_manager.load_project(path)
-
             pixmap = self.image_manager.get_pixmap()
 
             if pixmap:
@@ -606,30 +605,34 @@ class MainWindow(QMainWindow):
         self.image_manager.export_image(path)
 
 # Metodo Auxiliar
-    def _update_or_create_operation(self, op_class, condition, **kwargs):
+    def _update_or_create_operation(self, operation_class, condition, **params):
 
+    # Buscar operación existente
         found = None
 
         for op in self.image_manager.operations:
-            if isinstance(op, op_class):
+            if isinstance(op, operation_class):
                 found = op
                 break
 
-    # Si el valor es neutro → eliminar operación
-        if not condition:
+    # Si debe existir
+        if condition:
+
             if found:
-                self.image_manager.operations.remove(found)
-            return
+            # actualizar parámetros
+                for key, value in params.items():
+                    setattr(found, key, value)
 
-    # Si ya existe → actualizar parámetros
-        if found:
-            for key, value in kwargs.items():
-                setattr(found, key, value)
+            else:
+            # crear nueva operación
+                op = operation_class(**params)
+                self.image_manager.add_operation(op)
+
         else:
-        # Crear nueva operación
-            self.image_manager.add_operation(op_class(**kwargs))            
+        # eliminar si existe
+            if found:
+                self.image_manager.operations.remove(found)    
 
-# Metodo Aplicar Filtro seleccionado
  # Metodo Aplicar Filtro seleccionado
     def apply_selected_filter(self):
 

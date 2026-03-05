@@ -12,9 +12,11 @@ Notas importantes:
 import sys
 from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow
+from core.operations import load_filters
 
 
-def main(): 
+def main():
+    load_filters() 
     app = QApplication(sys.argv)
 
     window = MainWindow()
@@ -25,3 +27,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

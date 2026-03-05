@@ -5,6 +5,9 @@ para el modelo paramétrico no destructivo.
 
 import cv2
 import numpy as np
+import importlib
+import pkgutil
+
 
 FILTER_REGISTRY = {}
 
@@ -18,6 +21,7 @@ def register_filter(name):
 # BASE OPERATION
 # =====================================================
 class Operation:
+
     def __init__(self):
         self.enabled = True
 
@@ -25,18 +29,40 @@ class Operation:
         raise NotImplementedError
 
     def to_dict(self):
-        raise NotImplementedError
+
+        data = {
+            "type": self.__class__.__name__,
+            "enabled": self.enabled
+        }
+
+        # guardar todos los atributos del objeto
+        for key, value in self.__dict__.items():
+
+            if key != "enabled":
+                data[key] = value
+
+        return data
 
     @classmethod
     def from_dict(cls, data):
-        raise NotImplementedError
 
+        params = dict(data)
+
+        params.pop("type", None)
+        enabled = params.pop("enabled", True)
+
+        op = cls(**params)
+        op.enabled = enabled
+
+        return op
 
 # =====================================================
 # BRIGHTNESS / CONTRAST
 # =====================================================
 
-class BrightnessContrastOperation(Operation):
+@register_filter("BrightnessContrast")
+class BrightnessContrastOperation(Operation):    
+
     def __init__(self, brightness=0, contrast=1.0):
         super().__init__()
         self.brightness = brightness
@@ -51,7 +77,7 @@ class BrightnessContrastOperation(Operation):
         result = np.clip(result, 0, 255)
 
         return result.astype(np.uint8)
-
+    
     def to_dict(self):
         return {
             "type": "BrightnessContrast",
@@ -70,8 +96,9 @@ class BrightnessContrastOperation(Operation):
 # =====================================================
 # SATURATION
 # =====================================================
-
+@register_filter("Saturation")
 class SaturationOperation(Operation):
+
     def __init__(self, saturation=1.0):
         super().__init__()
         self.saturation = saturation
@@ -106,8 +133,9 @@ class SaturationOperation(Operation):
 # =====================================================
 # CURVE (S-CURVE SIMPLE)
 # =====================================================
-
+@register_filter("Curve")
 class CurveOperation(Operation):
+
     def __init__(self, strength=0.0):
         super().__init__()
         self.strength = strength
@@ -145,8 +173,9 @@ class CurveOperation(Operation):
 # =====================================================
 # BLUR
 # =====================================================
-
+@register_filter("Blur")
 class BlurOperation(Operation):
+
     def __init__(self, kernel_size=5):
         super().__init__()
         self.kernel_size = kernel_size
@@ -154,12 +183,10 @@ class BlurOperation(Operation):
     def apply(self, image):
         if not self.enabled:
             return image
-
         k = self.kernel_size
 
         if k % 2 == 0:
             k += 1
-
         return cv2.GaussianBlur(image, (k, k), 0)
 
     def to_dict(self):
@@ -174,12 +201,10 @@ class BlurOperation(Operation):
         op = cls(data["kernel_size"])
         op.enabled = data["enabled"]
         return op
-
-
 # =====================================================
 # SHARPEN (Unsharp Mask)
 # =====================================================
-
+@register_filter("Sharpen")
 class SharpenOperation(Operation):
 
     PARAMS = {
@@ -215,132 +240,27 @@ class SharpenOperation(Operation):
 
     def to_dict(self):
         return {
-            "type": "Sharpen",
-            "amount": self.amount,
-            "radius": self.radius,
-            "enabled": self.enabled
-        }
-
-    @classmethod
-    def from_dict(cls, data):
-        op = cls(data["amount"], data["radius"])
-        op.enabled = data["enabled"]
-        return op
-
-# ----------------------------------------
-# FILTRO FilmGrainOperation
-# ----------------------------------------
-@register_filter("Grano Analógico")
-class FilmGrainOperation(Operation):
-    
-    PARAMS = {
-        "intensidad": (0, 100, 20)
-    }
-
-    def __init__(self, intensidad=20):
-        super().__init__()
-        self.intensidad = intensidad
-
-    def apply(self, image):
-
-        if not self.enabled:
-            return image
-
-        image_array = image.astype(np.int16)
-
-        lum = np.mean(image_array, axis=2, dtype=np.float32) / 255.0
-
-        noise = np.random.randint(
-            -self.intensidad,
-            self.intensidad + 1,
-            lum.shape,
-            dtype=np.int16
-        )
-
-        scale = 0.5 + 0.5 * lum
-        noise_scaled = (noise * scale).astype(np.int16)
-
-        noisy_image = np.clip(
-            image_array + noise_scaled[:, :, np.newaxis],
-            0,
-            255
-        ).astype(np.uint8)
-
-        return noisy_image
-
-
-    # -------- Guardar proyecto --------
-    def to_dict(self):
-        return {
-            "type": "FilmGrainOperation",   # ⚠ cambio importante
+            "type": "FilmGrainOperation",
             "intensidad": self.intensidad,
-            "enabled": self.enabled
-        }
-
-
-    # -------- Cargar proyecto --------
-    @classmethod
-    def from_dict(cls, data):
-
-        op = cls(data.get("intensidad", 20))   # ⚠ más robusto
-        op.enabled = data.get("enabled", True)
-
-        return op
-    
-# ----------------------------------------
-# FILTRO WES ANDERSON
-# ----------------------------------------
-@register_filter("Wes Anderson")
-class WesAndersonOperation(Operation):
-    PARAMS = {
-        "strength": (0, 200, 100)
-    }
-
-    def __init__(self, strength=1.0):
-        super().__init__()
-        self.strength = strength
-
-    def apply(self, image):
-
-        if not self.enabled:
-            return image
-
-        img = image.astype(np.float32) / 255.0
-
-        # Reducir contraste
-        contrast_factor = 0.85
-        img = img * contrast_factor + (1 - contrast_factor) * 0.5
-
-        # Aumentar brillo
-        brightness_factor = 1.15
-        img = np.clip(img * brightness_factor, 0, 1)
-
-        # Tinte cálido
-        img[:, :, 0] *= 1.08
-        img[:, :, 1] *= 1.05
-        img[:, :, 2] *= 0.95
-
-        img = np.clip(img, 0, 1)
-
-        # Overlay rosado pastel
-        pink_overlay = np.array([1.0, 0.92, 0.92], dtype=np.float32)
-        pink_strength = 0.25 * self.strength
-
-        img = img * (1 - pink_strength) + pink_overlay * pink_strength
-
-        img = np.clip(img * 255, 0, 255).astype(np.uint8)
-
-        return img
-
-    def to_dict(self):
-        return {
-            "type": "WesAnderson",
-            "strength": self.strength,
+            "seed": self.seed,
             "enabled": self.enabled
         }
 
     @classmethod
     def from_dict(cls, data):
-        op = cls(data.get("strength", 1.0))
+        op = cls(
+            intensidad=data["intensidad"],
+            seed=data.get("seed")
+        )
         op.enabled = data["enabled"]
         return op
+# ----------------------------------------
+# CARGAR Filtros Plugins
+# ----------------------------------------
+def load_filters():
+    import filters
+
+    for loader, module_name, is_pkg in pkgutil.iter_modules(filters.__path__):
+        importlib.import_module(f"filters.{module_name}")
+
+print("Filtros registrados:", FILTER_REGISTRY)

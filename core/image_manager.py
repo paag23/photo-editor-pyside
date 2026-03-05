@@ -14,24 +14,21 @@ import copy
 from PySide6.QtGui import QImage, QPixmap
 import json
 import os
-from core.operations import FilmGrainOperation 
+from core.operations import FILTER_REGISTRY
 
 from core.operations import (
     BrightnessContrastOperation,
     SaturationOperation,
     CurveOperation,
     BlurOperation,
-    SharpenOperation,
-    FilmGrainOperation   
+    SharpenOperation
 )
 
 OPERATION_REGISTRY = {
     "BrightnessContrast": BrightnessContrastOperation,
     "Saturation": SaturationOperation,
     "Curve": CurveOperation,
-    "Blur": BlurOperation,
-    "Sharpen": SharpenOperation,
-    "FilmGrain": FilmGrainOperation
+    "Blur": BlurOperation
 }
 
 class ImageManager:
@@ -321,11 +318,24 @@ class ImageManager:
 
         return self._process_pipeline()
 
+
 # Guardar Proyecto    
     def save_project(self, path):
 
         if self.original_path is None:
             return
+
+    # DEBUG
+        for op in self.operations:
+            print("Operacion:", type(op))
+
+            try:
+                d = op.to_dict()
+                print("Dict:", d)
+
+            except Exception as e:
+                print("ERROR EN OPERACION:", type(op))
+                raise
 
         project_data = {
             "original_image_path": str(self.original_path),
@@ -341,26 +351,37 @@ class ImageManager:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-    # Cargar imagen original
+    # cargar imagen original
         original_path = data["original_image_path"]
         self.load_image(original_path)
 
-    # Limpiar stacks
+    # limpiar historial
         self.undo_stack.clear()
         self.redo_stack.clear()
 
-    # Reconstruir operaciones
         self.operations = []
 
         for op_data in data["operations"]:
+
             op_type = op_data["type"]
-            op_class = OPERATION_REGISTRY[op_type]
+
+        # buscar operación base
+            op_class = FILTER_REGISTRY.get(op_type)
+
+        # buscar filtro plugin
+            if op_class is None:
+                op_class = FILTER_REGISTRY.get(op_type)
+
+            if op_class is None:
+                print(f"Operacion desconocida: {op_type}")
+                continue
 
             op = op_class.from_dict(op_data)
+
             self.operations.append(op)
 
-    #  Reprocesar
         return self._process_pipeline()
+   
     
 # Función que convierte a QPixmap    
     def get_pixmap(self):
@@ -374,10 +395,22 @@ class ImageManager:
 
 # Exportar imagen     
     def export_image(self, path):
+
         img = self._process_pipeline()
-        
+
         if img is None:
             return
-    
+
+    # asegurar extensión
+        import os
+        if not os.path.splitext(path)[1]:
+            path += ".jpg"
+
         img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(path, img_bgr)
+
+        success = cv2.imwrite(path, img_bgr)
+
+        if success:
+            print("Imagen exportada:", path)
+        else:
+            print("Error al exportar imagen")
