@@ -8,12 +8,18 @@ import numpy as np
 import importlib
 import pkgutil
 
-
+OPERATION_REGISTRY = {}
 FILTER_REGISTRY = {}
 
 def register_filter(name):
     def decorator(cls):
         FILTER_REGISTRY[name] = cls
+        return cls
+    return decorator
+
+def register_operation(name):
+    def decorator(cls):
+        OPERATION_REGISTRY[name] = cls
         return cls
     return decorator
 
@@ -60,7 +66,7 @@ class Operation:
 # BRIGHTNESS / CONTRAST
 # =====================================================
 
-@register_filter("BrightnessContrast")
+@register_operation("BrightnessContrast")
 class BrightnessContrastOperation(Operation):    
 
     def __init__(self, brightness=0, contrast=1.0):
@@ -96,7 +102,7 @@ class BrightnessContrastOperation(Operation):
 # =====================================================
 # SATURATION
 # =====================================================
-@register_filter("Saturation")
+@register_operation("Saturation")
 class SaturationOperation(Operation):
 
     def __init__(self, saturation=1.0):
@@ -133,7 +139,7 @@ class SaturationOperation(Operation):
 # =====================================================
 # CURVE (S-CURVE SIMPLE)
 # =====================================================
-@register_filter("Curve")
+@register_operation("Curve")
 class CurveOperation(Operation):
 
     def __init__(self, strength=0.0):
@@ -173,7 +179,7 @@ class CurveOperation(Operation):
 # =====================================================
 # BLUR
 # =====================================================
-@register_filter("Blur")
+@register_operation("Blur")
 class BlurOperation(Operation):
 
     def __init__(self, kernel_size=5):
@@ -204,7 +210,7 @@ class BlurOperation(Operation):
 # =====================================================
 # SHARPEN (Unsharp Mask)
 # =====================================================
-@register_filter("Sharpen")
+@register_operation("Sharpen")
 class SharpenOperation(Operation):
 
     PARAMS = {
